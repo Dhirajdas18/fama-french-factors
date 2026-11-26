@@ -2,7 +2,7 @@
 
 Scaling (Barroso and Santa-Clara, 2015): at each month-end, a factor's position for the next
 month is target / realised volatility, the realised volatility from the factor's daily returns
-over the past `look` trading days (annualised with the window's own trading days a year), capped
+over the past `look` trading days (annualised with 250 trading days a year), capped
 at `cap`. The look-back and the target are chosen on the training years only.
 """
 
@@ -14,8 +14,7 @@ from ff import stats
 
 def realised_vol(daily: pd.Series, look: int) -> pd.Series:
     """Annualised volatility of the past `look` daily returns, at each month-end."""
-    per_year = len(daily) / ((daily.index[-1] - daily.index[0]).days / 365.25)
-    v = daily.rolling(look, min_periods=int(0.8 * look)).std() * np.sqrt(per_year)
+    v = daily.rolling(look, min_periods=int(0.8 * look)).std() * np.sqrt(250)
     return v.resample("ME").last()
 
 

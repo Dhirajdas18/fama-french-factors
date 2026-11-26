@@ -17,7 +17,18 @@ def test_long_only_winners_pay_costs_on_trades_only():
     px = pd.DataFrame(100 * np.cumprod(1 + np.tile(drift, (16, 1)), axis=0), index=idx)
     w = verdict.winners_long_only(px)
     first = w.iloc[0]
-    assert np.isclose(first["cost"], verdict.BUY)  # buys the whole book once
+    assert np.isclose(first["cost"], verdict.BUY)  # buys the whole book once, sells nothing
     assert (w["turnover"].iloc[1:] < 0.02).all()  # later months only rebalance the drift
     assert (w["gross"] > w["bench"]).all()
     assert np.allclose(w["net"], (1 - w["cost"]) * (1 + w["gross"]) - 1)
+
+
+def test_each_stock_sold_pays_the_dp_charge():
+    idx = pd.date_range("2020-01-31", periods=16, freq="ME")
+    rng = np.random.default_rng(5)
+    px = pd.DataFrame(100 * np.cumprod(1 + rng.normal(0, 0.08, (16, 60)), axis=0), index=idx)
+    w = verdict.winners_long_only(px)
+    floor = verdict.DP_PER_SELL / verdict.CAPITAL
+    later = w.iloc[1:]
+    # a month that replaces names pays at least one DP charge on top of the percentage costs
+    assert (later.loc[later["turnover"] > 0.05, "cost"] > floor).all()

@@ -105,7 +105,7 @@
 </style>
 </head>
 <body>
-<a class="skip" href="#main">Skip to the factor lab</a>
+<a class="skip" href="#main" onclick="event.preventDefault(); document.getElementById('main').focus()">Skip to the factor lab</a>
 <div class="wrap">
 <header>
 <h1>Indian Fama-French factors</h1>
@@ -118,7 +118,7 @@ pick, and splits any mutual fund’s return into those exposures and what is lef
 <nav aria-label="Sections"><ul>
 $nav
 </ul></nav>
-<main id="main" class="wrap">
+<main id="main" class="wrap" tabindex="-1">
 $sections
 </main>
 <footer class="wrap">

@@ -146,8 +146,9 @@ $js
     const hit = [...el("ff-hits").options].find((o) => o.value === q);
     if (hit) {
       fund = hit.dataset.code;
-      if (![...el("ff-fund").options].some((o) => o.value === fund)) el("ff-fund").insertAdjacentHTML("beforeend", `<option value="${fund}"></option>`);
-      el("ff-fund").lastElementChild.textContent = q; el("ff-fund").value = fund; save(); drawFund();
+      let opt = [...el("ff-fund").options].find((o) => o.value === fund);
+      if (!opt) { el("ff-fund").insertAdjacentHTML("beforeend", `<option value="${fund}"></option>`); opt = el("ff-fund").lastElementChild; opt.textContent = q; }
+      el("ff-fund").value = fund; save(); drawFund();
       return;
     }
     if (q.length < 3) return;

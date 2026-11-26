@@ -6,9 +6,11 @@ import pandas as pd
 
 # NSE delivery costs per rupee traded, as checked in momentum-after-costs (Zerodha, Nov 2026):
 # STT 0.1% each side, stamp duty 0.015% on buys, NSE 0.00322% and SEBI 0.0001% each side with 18%
-# GST, plus 5 bp of slippage each side (the ₹16 DP charge per stock sold is left out).
+# GST, plus 5 bp of slippage each side, and the ₹16 DP charge per stock sold on a ₹10 lakh book.
 BUY = 0.001 + 0.00015 + (0.0000322 + 0.000001) * 1.18 + 0.0005
 SELL = 0.001 + (0.0000322 + 0.000001) * 1.18 + 0.0005
+DP_PER_SELL = 16.0
+CAPITAL = 1_000_000.0
 
 
 def tangency(train: pd.DataFrame) -> pd.Series:
@@ -41,7 +43,8 @@ def winners_long_only(m_px: pd.DataFrame, uni: pd.DataFrame | None = None,
         cur = held.reindex(allw.index, fill_value=0.0)
         buys = (allw - cur).clip(lower=0).sum()
         sells = (cur - allw).clip(lower=0).sum()
-        cost = buys * BUY + sells * SELL
+        n_sold = int(((cur - allw) > 1e-12).sum())
+        cost = buys * BUY + sells * SELL + n_sold * DP_PER_SELL / CAPITAL
         r = nxt.loc[t].reindex(win).fillna(0.0)
         gross = float((target * r).sum())
         grown = target * (1 + r)

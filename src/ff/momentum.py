@@ -26,20 +26,25 @@ def monthly_panel() -> tuple[pd.DataFrame, pd.DataFrame]:
     alive = px.notna().resample("ME").max()  # traded at least once in the month
     m_px = m_px.where(alive)
     m_tv = tv.rolling(250, min_periods=120).median().resample("ME").last()
+    if (m_px.index[-1] - px.index[-1]).days > 3:  # the archive stops partway through its last month
+        m_px, m_tv = m_px.iloc[:-1], m_tv.iloc[:-1]
     return m_px, m_tv
 
 
 def wml(m_px: pd.DataFrame, m_tv: pd.DataFrame, skip: int = 1, weight: str = "equal",
         sized: bool = True, big_share: float = 0.10, tail: float = 0.30,
-        min_names: int = 5) -> pd.DataFrame:
+        min_names: int = 5, uni: pd.DataFrame | None = None) -> pd.DataFrame:
     """Monthly winners-minus-losers returns, formed at each month-end t and held over t+1.
     skip=1 measures momentum from t-12 to t-1 (IIMA, Carhart); skip=0 from t-12 to t. Returns a
-    frame with WML, the four corner portfolios (when sized) and the number of stocks."""
+    frame with WML, the four corner portfolios (when sized) and the number of stocks. With `uni`
+    (month-end booleans, e.g. monthly_universe), only stocks in it at t are eligible."""
     nxt = m_px.shift(-1) / m_px - 1  # return over month t+1
     mom = m_px.shift(skip) / m_px.shift(12) - 1
     rows = {}
     for t in m_px.index[12:-1]:
         ok = mom.loc[t].notna() & m_px.loc[t].notna() & m_tv.loc[t].notna()
+        if uni is not None:
+            ok &= uni.reindex(index=[t], columns=m_px.columns, fill_value=False).iloc[0]
         r = nxt.loc[t][ok]
         if not np.isfinite(r).all():  # a stock with no price next month: last price, return 0
             r = r.fillna(0.0)

@@ -104,7 +104,9 @@ def report_momentum(out_dir: Path) -> dict:
     """Momentum rebuilt from the NSE archive (ff.momentum) against IIMA's WML over the months
     both cover: the IIMA-like build (12-1 momentum, top and bottom 30%, big = top 10% by past
     turnover, equal weights), and one change at a time: turnover weights, no size split, no
-    skipped month, and today's survivors only. Correlation, average a year with Newey-West t,
+    skipped month, today's survivors only, and the reference model's point-in-time top 200 (the archive
+    itself holds stocks that were among its most-traded at some point, chosen with hindsight).
+    Correlation, average a year with Newey-West t,
     the regression of ours on IIMA's, tracking error, and how much of the winners changes each
     month. Needs the NSE bhavcopy archive."""
     from ff import data, momentum, stats
@@ -112,12 +114,15 @@ def report_momentum(out_dir: Path) -> dict:
     f = data.factors()
     px, tv = momentum.monthly_panel()
     alive = px.columns[px.iloc[-1].notna()]
+    uni = momentum.monthly_universe()
     variants = {
         "IIMA-like": ({}, px),
         "turnover weights": ({"weight": "turnover"}, px),
         "no size split": ({"sized": False}, px),
         "no skipped month": ({"skip": 0}, px),
         "survivors only": ({}, px[alive]),
+        "point-in-time top 200": ({"uni": uni}, px),
+        "top 200, no size split": ({"sized": False, "uni": uni}, px),
     }
     res, out = {}, {}
     for name, (kw, p) in variants.items():
@@ -173,7 +178,7 @@ def report_momentum(out_dir: Path) -> dict:
     names = list(variants)
     y = np.arange(len(names))[::-1]
     vals = [100 * out[n][1]["mean"] for n in names]
-    ax.barh(y, vals, color=[plots.COLORS["WML"]] + [plots.SERIES[0]] * (len(names) - 1),
+    ax.barh(y, vals, color=[plots.COLORS["WML"]] + [plots.SERIES[0]] * 4 + [plots.SERIES[2]] * 2,
             height=0.6)
     iima = 100 * stats.summary(j["IIMA"])["mean"]
     ax.axvline(iima, color=plots.TEXT_2, lw=1, ls="--")
@@ -242,6 +247,19 @@ def report_stocks(out_dir: Path) -> dict:
         stab[lab] = q[f"{c}_1"].rank().corr(q[f"{c}_2"].rank())
     res["rank correlation of loadings, 2013-2019 against 2020-2025"] = "; ".join(
         f"{k} {v:.2f}" for k, v in stab.items())
+    uni = momentum.monthly_universe().shift(1).reindex(index=e.index, columns=e.columns)
+    e_pit = e.where(uni.fillna(False).astype(bool))  # months after a month-end in the top 200
+    ins_p = ex.in_sample(e_pit, f)
+    g = ins_p[ins_p["model"] == "4-factor"]
+    res["point-in-time top 200 only"] = (
+        f"{g['symbol'].nunique()} stocks with 60+ such months: 4-factor median loadings market "
+        f"{g['MKT'].median():+.2f}, size {g['SMB'].median():+.2f} (t > 2 for "
+        f"{(g['t_SMB'] > 2).mean():.0%}), value {g['HML'].median():+.2f}, momentum "
+        f"{g['WML'].median():+.2f}; median alpha {g['alpha'].median():+.1%}")
+    oo_p = ex.out_of_sample(e_pit, f)
+    res["  point-in-time, out of sample"] = (
+        f"{oo_p['symbol'].nunique()} stocks: median R² " + ", ".join(
+            f"{m} {oo_p[oo_p['model'] == m]['oos_r2'].median():.1%}" for m in ex.MODELS))
     first = px.apply(lambda s: s.first_valid_index())
     res["  archive stocks first priced after June 2013"] = (
         f"{(first > pd.Timestamp('2013-06-30')).sum()} of {px.shape[1]}")
@@ -636,7 +654,8 @@ def report_verdict(out_dir: Path) -> dict:
     ax.set_yticklabels(["₹1", "₹2", "₹4", "₹8"])
     ax.set_ylabel("₹1 compounded monthly")
     ax.set_title("A long-only momentum tilt, after delivery costs", fontsize=10.5, loc="left")
-    fig.suptitle("Use value and momentum together; momentum survived costs as a long-only tilt",
+    fig.suptitle("Use value and momentum together; a long-only momentum tilt kept an edge after "
+                 "costs",
                  x=0.01, ha="left", fontweight="bold")
     fig.tight_layout()
     plots.save(fig, out_dir, "verdict")

@@ -29,3 +29,12 @@ def test_sized_wml_is_the_average_of_the_two_size_legs():
     w = momentum.wml(px, tv, sized=True, big_share=0.5)
     legs = ((w["WB"] - w["LB"]) + (w["WS"] - w["LS"])) / 2
     assert np.allclose(w["WML"], legs)
+
+
+def test_universe_mask_limits_the_eligible_stocks():
+    px, tv = _toy()
+    uni = pd.DataFrame(False, index=px.index, columns=px.columns)
+    uni.iloc[:, :55] = True
+    w_all = momentum.wml(px, tv, sized=False)
+    w_uni = momentum.wml(px, tv, sized=False, uni=uni)
+    assert (w_uni["n"] == 55).all() and (w_all["n"] == 60).all()

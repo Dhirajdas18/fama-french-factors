@@ -34,7 +34,8 @@ the market's return minus the risk-free rate (the library's MF column, which mat
 published market premium of 4.93% a year since 1994); size (small minus big), value (cheap minus
 expensive on book-to-market) and momentum (winners minus losers on past returns) are long-short
 portfolios of listed companies, micro-caps and penny stocks excluded. Each factor's average a year
-is 12 times its monthly mean, with a Newey-West t (3 lags); compounded growth uses calendar years;
+is 12 times its monthly mean, with a Newey-West t (3 lags); compounded growth spreads the months
+counted over months ÷ 12 years;
 the halves are 1993–2009 and 2010–2025. Nothing is fitted. The market's own return is checked
 against NIFTY from the local archive where both exist.
 
@@ -60,8 +61,11 @@ IIMA's momentum rule (working paper 2013-09-05, section 3.2): at each month-end,
 return from 12 months back to one month back; winners are the top 30%, losers the bottom 30%; big
 companies are the top 10% by market value; the factor is the average of big winners minus big
 losers and small winners minus small losers, value-weighted, held for the next month. The NSE
-archive has split-adjusted prices for every stock that was among its most-traded from 2013,
-including 69 that later stopped trading, but no shares outstanding, so the rebuild uses each
+archive has split-adjusted prices for every stock that was among its most-traded at some point
+from 2013, including 69 that later stopped trading; that list was drawn up knowing which stocks
+became heavily traded, so the rebuild is also run within the reference model's point-in-time universe (each
+month's 200 most-traded stocks priced at ₹50 or more). The archive has no shares outstanding, so
+the rebuild uses each
 stock's median daily turnover over the past year for size and weights stocks equally; a stock
 that stops trading keeps its last price. It is compared with IIMA's factor over the 143 months
 both cover, February 2014 to December 2025, changing one choice at a time. Nothing is fitted.
@@ -72,7 +76,10 @@ both cover, February 2014 to December 2025, changing one choice at a time. Nothi
 - **It was rougher.** Its worst fall was −43% against IIMA's −26% over the same months.
 - **The details moved the average by several points.** Without the size split it made 16.1% a year;
   with turnover weights, 8.7%; without skipping the latest month, 11.3%; with today's survivors only,
-  9.9%. Every variant kept a correlation of 0.73–0.76 with IIMA's.
+  9.9%. Every variant kept a correlation of 0.72–0.76 with IIMA's.
+- **In the point-in-time top 200 it still tracked, a little lower.** The IIMA-like build made 10.3% a
+  year (t 2.06, correlation 0.72, loading 0.83, worst fall −33%); without the size split, 9.0% (t
+  2.06, correlation 0.76), so the 16.1% above owes much to the archive's hindsight-chosen list.
 - **Both halves agreed.** The correlation was 0.77 in 2014–2019 (17.1% a year against IIMA's 16.5%)
   and 0.74 in 2020–2025 (6.7% against 9.3%).
 - **Winners change slowly.** On average 17% of the winners list was replaced each month.
@@ -89,16 +96,21 @@ sample: for the 389 stocks with at least 48 months in each half, loadings fitted
 predict each 2020–2025 month from that month's factor returns, with no alpha; the score is the
 share of the stock's 2020–2025 variation that prediction explains. The archive holds stocks that
 were among its most-traded at some point from 2013 (140 of its 556 stocks were first priced after
-June 2013), so in-sample alphas are not evidence of skill.
+June 2013), chosen with hindsight, so the fits are repeated on the months each stock spent in the
+point-in-time top 200; in-sample alphas are not evidence of skill either way, and the stock returns
+leave out dividends while IIMA's factors include them.
 
 - **The market alone explained about a quarter.** CAPM's median R² was 24.5% in-sample; three
   factors 30.3%, four 31.4%.
 - **Three factors kept their edge out of sample.** Loadings from 2013–2019 explained a median 23.5%
   of 2020–2025 with CAPM, 26.5% with three factors and 25.2% with four; three factors beat CAPM for
   71% of stocks, and four beat three for only 42%.
-- **Most stocks leaned small, and many cheap.** Measured against IIMA's factors, where big means the
-  top 10% of all listed companies, the median size loading was +0.40 (significantly positive for
-  44% of stocks) and value +0.19 (28%); momentum −0.16, significantly negative for 14%.
+- **The archive's stocks leaned small and cheap; the top 200 barely did.** Against IIMA's factors,
+  where big means the top 10% of all listed companies, the archive's median size loading was +0.40
+  (significantly positive for 44% of stocks) and value +0.19; within the point-in-time top 200 (198
+  stocks with 60+ months) size was +0.08 (19%) and value +0.03. Momentum was −0.16 and −0.13. Out
+  of sample in the top 200 (112 stocks), three factors still led: 28.5% against 26.7% for CAPM and
+  25.5% for four.
 - **Size and value loadings carried over; momentum's didn't.** Ranked across stocks, 2013–2019
   loadings matched 2020–2025 with a correlation of 0.55 for size, 0.44 for value and 0.18 for
   momentum. CAPM beta kept 0.52, but the market loading inside the four-factor model only 0.11.
@@ -133,16 +145,18 @@ line up with the portfolios' averages, not whether unrelated assets are priced.
 
 <a href="docs/img/funds.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/funds.png"><img src="docs/img/funds.gif" alt="Histogram of 297 Indian active equity funds' four-factor alpha against six index funds, and growth of one rupee in the top and bottom thirds of funds ranked on their past three years' alpha, 2017-2025" width="720"></picture></a>
 
-Every Indian diversified equity fund that mfapi.in lists with a direct plan and growth option
+The Indian diversified equity funds that mfapi.in lists with a direct plan and growth option
 (sector, thematic, overseas, index and closed-ended schemes left out), including 56 that have
-since stopped reporting: monthly returns from each month's last net asset value, after fees, from
+since stopped reporting (mfapi.in may not list every merged scheme): monthly returns from each
+month's last net asset value, after fees and trading costs, from
 January 2013, when direct plans began, to December 2025; 297 funds with at least 36 months. Each
 fund's return above the risk-free rate is regressed on CAPM, three and four factors (Newey-West t,
 3 lags). Six index funds tracking NIFTY 50, NIFTY Next 50, Midcap 150 and Smallcap 250 go through
 the same regression as a zero-skill baseline, since they only hold their index. Out of sample,
 each December from 2016 the funds with a full 36 months (167–215) are ranked on that window's
 four-factor alpha, and the top and bottom thirds are held equally weighted for the next 12 months;
-nothing after the ranking date is used.
+nothing after the ranking date is used. IIMA's factor portfolios carry no costs, which the index
+funds' alphas partly reflect.
 
 - **More factors raised funds' alpha.** The median alpha was +1.4% a year under CAPM, +1.5% under
   three factors and +2.6% under four; 24% of funds had t above 2 under four factors and none below
@@ -155,7 +169,7 @@ nothing after the ranking date is used.
   loadings of +0.25 and +0.41; large cap funds +1.1%.
 - **Past alpha persisted a little.** From 2017 to 2025 the past top third returned 18.0% a year with
   a four-factor alpha of +3.7% (t 2.20), the bottom third 16.1% and +2.4% (t 1.60); top minus
-  bottom +1.4% a year (t 2.10).
+  bottom returned +1.9% a year, with a four-factor alpha of +1.4% (t 2.10).
 
 ### 6. Momentum's crashes came in rebounds; scaling by volatility didn't help out of sample
 
@@ -167,7 +181,8 @@ months). Volatility scaling, after Barroso and Santa-Clara (2015): each month a 
 a weight of a target volatility over its realised volatility from the previous month-end's daily
 returns, capped at 2. The look-back (21, 63, 126 or 252 trading days) is the one with the best
 Sharpe ratio on 1994–2009, and the target is the factor's 1994–2009 volatility; both are then
-fixed and scored on 2010–2025. Because 2010–2025 was calmer, scaled weights averaged 1.7–1.9, so
+fixed and scored on 2010–2025; volatility is annualised with 250 trading days. Because 2010–2025
+was calmer, scaled weights averaged 1.7–1.9, so
 worst months and falls are compared after setting both versions to the same volatility.
 
 - **Momentum crashed in rebounds after bear markets.** After a bear market its correlation with
@@ -178,12 +193,12 @@ worst months and falls are compared after setting both versions to the same vola
   −19.0% (January 2000); momentum −27.6% (November 2001).
 - **Scaling looked good where it was chosen.** On 1994–2009, scaled momentum's Sharpe ratio was
   0.64 against 0.38 unscaled; the market, size and value gained 0.03–0.10.
-- **Out of sample it didn't help.** On 2010–2025 the Sharpe ratios were 0.92 against 0.90 for
+- **Out of sample it didn't help.** On 2010–2025 the Sharpe ratios were 0.93 against 0.90 for
   momentum, 0.36 against 0.43 for the market, 0.37 against 0.42 for value and 0.06 against 0.07 for
   size; at the same volatility scaled momentum's worst month was −18.5% against −18.0% and its worst
   fall −35% against −33%.
 
-### 7. Use value and momentum together; momentum survived costs as a long-only tilt
+### 7. Use value and momentum together; a long-only momentum tilt kept an edge after costs
 
 <a href="docs/img/verdict.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/verdict.png"><img src="docs/img/verdict.gif" alt="Sharpe ratios of value, momentum, a 50/50 mix and fitted mixes in 1993-2009 and 2010-2025, and growth of one rupee in long-only liquid momentum winners after costs against the equal-weighted top 200 and NIFTY, 2014-2026" width="720"></picture></a>
 
@@ -194,8 +209,10 @@ long-only winner and value portfolios against the market's own return. Third, a 
 tilt built from the archive: each month-end, the top 30% by 12-1 momentum within the reference model's
 point-in-time universe (that day's 200 most-traded stocks priced at ₹50 or more, so no look-ahead
 in which stocks are eligible), equally weighted, paying NSE delivery costs on every trade (STT,
-stamp duty, exchange and SEBI charges with GST, and 5 bp of slippage each side, as checked in
-momentum-after-costs), from February 2014 to November 2026, against the equally weighted top 200
+stamp duty, exchange and SEBI charges with GST, 5 bp of slippage each side and the ₹16 DP charge
+per stock sold on a ₹10 lakh book, as in momentum-after-costs; rebalancing to equal weights trims
+most holdings, and each trim is a sale), from February 2014 to October 2026, against the equally
+weighted top 200
 and NIFTY's price index. Before tax and without dividends; the IIMA portfolios carry no costs.
 
 - **A plain 50/50 mix did best out of sample.** Its Sharpe ratio was 0.69 in 1993–2009 and 1.27 in
@@ -205,14 +222,15 @@ and NIFTY's price index. Before tax and without dividends; the IIMA portfolios c
 - **Long-only winners beat the market.** IIMA's big winners beat the market's own return by 6.8% a
   year from 1993 (t 2.80), 3.6% since 2010 (t 1.52); small winners by 10.5% since 2010 (t 3.02).
   Long-only value was noisier: big value +9.6% a year (t 1.56) with a 28.9% tracking error.
-- **The liquid momentum tilt survived costs.** Trading 24% of the book a month cost 0.93% a year. It
-  compounded 19.8% a year after costs against 15.4% for the equally weighted top 200 and 11.9% for
-  NIFTY's price index; it beat the top 200 by 3.9% a year after costs (t 1.98), 4.3% in 2014–2019
-  and 3.6% in 2020–2026, and its worst fall was −30% against −43%.
+- **The liquid momentum tilt kept an edge after costs.** Trading 24% of the book a month cost 1.60% a
+  year. It compounded 18.9% a year after costs against 14.9% for the equally weighted top 200 and
+  11.0% for NIFTY's price index; it beat the top 200 by 3.6% a year after costs (t 1.81; 5.2%, t
+  2.63, before), 3.6% in both 2014–2019 and 2020–2026, and its worst fall was −31% against −43%.
 - **The verdict.** For risk, use market, size and value (finding 3). For alpha, use all four factors
-  and judge against same-style index funds (findings 4 and 5). Tilt towards momentum and value
-  together rather than either alone, long-only, and expect momentum's crashes in rebounds after bear
-  markets (finding 6); size earned nothing here (finding 1).
+  and judge against same-style index funds (findings 4 and 5). Value and momentum diversified each
+  other as long-short factors; long-only, only the momentum tilt was tested after costs and it kept
+  an edge, while long-only value was noisy (t 1.2–1.6). Expect momentum's crashes in rebounds after
+  bear markets (finding 6); size earned nothing here (finding 1).
 
 ## Quick start
 
