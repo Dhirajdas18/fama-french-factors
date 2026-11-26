@@ -18,7 +18,7 @@ market, size, value and momentum exposures and what is left over, computed in yo
 - [x] Momentum rebuilt from the NSE archive and checked against the library's factor
 - [x] CAPM against three and four factors on single stocks: how much each explains, and stable loadings
 - [x] Do the factors price the size-value portfolios? The GRS test for CAPM, three and four factors
-- [ ] Mutual funds: is their alpha just size, value and momentum? Out of sample
+- [x] Mutual funds: is their alpha just size, value and momentum? Out of sample
 - [ ] Factor crashes: momentum and value drawdowns, and a risk-scaling rule chosen on early years
 - [ ] Verdict: which factors to use for risk and attribution, and whether to tilt towards any
 
@@ -129,12 +129,41 @@ line up with the portfolios' averages, not whether unrelated assets are priced.
 - **Big value on its own was not rejected.** Its alpha was +9.4% a year under CAPM (t 1.55) and
   −3.3% under three factors (t −1.39).
 
+### 5. Funds kept a small alpha after the four factors, mostly inside the index funds' range
+
+<a href="docs/img/funds.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/funds.png"><img src="docs/img/funds.gif" alt="Histogram of 297 Indian active equity funds' four-factor alpha against six index funds, and growth of one rupee in the top and bottom thirds of funds ranked on their past three years' alpha, 2017-2025" width="720"></picture></a>
+
+Every Indian diversified equity fund that mfapi.in lists with a direct plan and growth option
+(sector, thematic, overseas, index and closed-ended schemes left out), including 56 that have
+since stopped reporting: monthly returns from each month's last net asset value, after fees, from
+January 2013, when direct plans began, to December 2025; 297 funds with at least 36 months. Each
+fund's return above the risk-free rate is regressed on CAPM, three and four factors (Newey-West t,
+3 lags). Six index funds tracking NIFTY 50, NIFTY Next 50, Midcap 150 and Smallcap 250 go through
+the same regression as a zero-skill baseline, since they only hold their index. Out of sample,
+each December from 2016 the funds with a full 36 months (167–215) are ranked on that window's
+four-factor alpha, and the top and bottom thirds are held equally weighted for the next 12 months;
+nothing after the ranking date is used.
+
+- **More factors raised funds' alpha.** The median alpha was +1.4% a year under CAPM, +1.5% under
+  three factors and +2.6% under four; 24% of funds had t above 2 under four factors and none below
+  −2. Most styles leaned slightly away from momentum (median loadings −0.01 to −0.09).
+- **Index funds set the bar.** The six index funds' four-factor alphas ranged from −3.0% to +3.6% a
+  year (all t below 1.4); 34% of active funds beat the best of them.
+- **Funds that stopped did worse.** The 56 that stopped reporting had a median four-factor alpha of
+  +0.6% a year against +3.1% for the rest.
+- **Mid and small cap funds showed the most.** Median four-factor alpha +4.8% a year each, with size
+  loadings of +0.25 and +0.41; large cap funds +1.1%.
+- **Past alpha persisted a little.** From 2017 to 2025 the past top third returned 18.0% a year with
+  a four-factor alpha of +3.7% (t 2.20), the bottom third 16.1% and +2.4% (t 1.60); top minus
+  bottom +1.4% a year (t 2.10).
+
 ## Quick start
 
 ```bash
 uv sync
 uv run python scripts/fetch_data.py   # IIMA factor library -> data/iima/
-uv run ff report factors              # topics: factors, momentum, stocks, grs
+uv run ff report factors              # topics: factors, momentum, stocks, grs,
+                                      # funds (after scripts/fetch_funds.py)
 uv run python scripts/build_site.py   # factor lab -> site/index.html
 uv run pytest
 ```
@@ -159,6 +188,8 @@ it.
   minus losers built the IIMA way (size by turnover, equal or turnover weights).
 - `src/ff/exposures.py`: single stocks on CAPM, three and four factors: fits, out-of-sample
   explanation from earlier loadings, and loadings in each half.
+- `src/ff/funds.py`: diversified equity funds' NAV histories from mfapi.in (cached, not committed),
+  styles from fund names, index funds as the baseline, alphas and the ranking test.
 - `src/ff/reports.py`: README findings, reproducible with `ff report <topic>`.
 - Conventions: returns are monthly and simple, in decimals; averages are 12 × the monthly mean,
   volatility √12 × the monthly standard deviation, compounded growth over months ÷ 12 years; t

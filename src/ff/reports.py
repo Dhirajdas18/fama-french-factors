@@ -371,9 +371,99 @@ def report_grs(out_dir: Path) -> dict:
     return res
 
 
+def report_funds(out_dir: Path) -> dict:
+    """Indian diversified equity funds (direct plans, growth, from mfapi.in; closed and merged
+    schemes included where listed): CAPM, three- and four-factor alphas after fees from January
+    2013 (direct plans start then), funds with 36+ months; index funds as the zero-skill
+    baseline; alphas of funds that stopped reporting; loadings by style; and persistence out of
+    sample: each December from 2015, rank funds on their past 36 months' four-factor alpha, hold
+    the top and bottom thirds equally weighted for the next 12 months. Needs scripts/fetch_funds."""
+    from ff import data, funds, stats
+
+    f = data.factors()
+    r, info = funds.load()
+    r = r.loc["2013-01-31":]
+    C4 = ["MKT", "SMB", "HML", "WML"]
+    models = {"CAPM": ["MKT"], "3-factor": C4[:3], "4-factor": C4}
+    res, tabs = {}, {}
+    for m, c in models.items():
+        a = funds.alpha_table(r, f, c)
+        tabs[m] = a
+        res[f"{m}, {len(a)} funds"] = (
+            f"median alpha {a['alpha'].median():+.1%} a year (mean {a['alpha'].mean():+.1%}); "
+            f"t > 2 for {(a['t'] > 2).mean():.0%}, t < -2 for {(a['t'] < -2).mean():.0%}; "
+            f"median R² {a['r2'].median():.0%}")
+    a4 = tabs["4-factor"].join(info)
+    res["  fund months"] = (f"{a4['n'].min():.0f}-{a4['n'].max():.0f} per fund, "
+                            f"{r.index[0]:%b %Y}-{f.index[-1]:%b %Y}")
+    ix = funds.alpha_table(funds.index_returns().loc["2013-01-31":], f, C4)
+    capm_ix = funds.alpha_table(funds.index_returns().loc["2013-01-31":], f, ["MKT"])
+    res["index funds (baseline), 4-factor alpha"] = "; ".join(
+        f"{n} {v:+.1%} (t {t:.2f})" for n, v, t in zip(ix.index, ix["alpha"], ix["t"],
+                                                     strict=True))
+    res["  index funds, CAPM alpha"] = (f"{capm_ix['alpha'].min():+.1%} to "
+                                        f"{capm_ix['alpha'].max():+.1%}")
+    res["  active funds above the best index fund's 4-factor alpha"] = (
+        f"{(a4['alpha'] > ix['alpha'].max()).mean():.0%}")
+    stopped = a4["last"] < pd.Timestamp("2026-10-01")
+    res["funds that stopped reporting"] = (
+        f"{stopped.sum()} of {len(a4)}: median 4-factor alpha "
+        f"{a4.loc[stopped, 'alpha'].median():+.1%} against "
+        f"{a4.loc[~stopped, 'alpha'].median():+.1%} for the rest")
+    g = a4.groupby("category")[["alpha", "MKT", "SMB", "HML", "WML"]].median()
+    for k, row in g.iterrows():
+        res[f"  {k} ({(a4['category'] == k).sum()})"] = (
+            f"alpha {row['alpha']:+.1%}, market {row['MKT']:.2f}, size {row['SMB']:+.2f}, "
+            f"value {row['HML']:+.2f}, momentum {row['WML']:+.2f}")
+    p = funds.persistence(r, f, C4)
+    res["persistence"] = (f"{p['formed'].nunique()} formations, {len(p)} holding months "
+                          f"({p.index[0]:%b %Y}-{p.index[-1]:%b %Y}), "
+                          f"{p['n'].min()}-{p['n'].max()} funds ranked")
+    for c, lab in (("top", "top third"), ("bottom", "bottom third"), ("all", "all ranked")):
+        y = p[c]
+        o = stats.ols((y - f.loc[y.index, "RF"]).to_numpy(), f.loc[y.index, C4].to_numpy())
+        res[f"  {lab}"] = (f"return {12 * y.mean():+.1%} a year; 4-factor alpha "
+                           f"{12 * o['b'][0]:+.1%} (t {o['t'][0]:.2f})")
+    d = p["top"] - p["bottom"]
+    o = stats.ols(d.to_numpy(), f.loc[d.index, C4].to_numpy())
+    res["  top minus bottom"] = (f"{12 * d.mean():+.1%} a year; 4-factor alpha "
+                                 f"{12 * o['b'][0]:+.1%} (t {o['t'][0]:.2f})")
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6))
+    ax = axes[0]
+    bins = np.arange(-0.10, 0.125, 0.01)
+    ax.hist(a4["alpha"].clip(-0.099, 0.119), bins=bins, color=plots.SERIES[0], rwidth=0.9)
+    for v in ix["alpha"]:
+        ax.axvline(v, color=plots.TEXT_2, lw=1, ls="--")
+    ax.text(ix["alpha"].max(), ax.get_ylim()[1] * 0.95, " index funds (dashed)",
+            fontsize=8.5, color=plots.TEXT_2, va="top")
+    ax.xaxis.set_major_formatter(lambda v, _: f"{100 * v:+.0f}%")
+    ax.set_xlabel("four-factor alpha a year, after fees")
+    ax.set_ylabel("number of funds")
+    ax.set_title(f"{len(a4)} active funds against six index funds", fontsize=10.5, loc="left")
+    ax = axes[1]
+    for c, lab, col in (("top", "past alpha: top third", plots.SERIES[2]),
+                        ("all", "all ranked funds", plots.MUTED),
+                        ("bottom", "past alpha: bottom third", plots.SERIES[1])):
+        w = (1 + p[c]).cumprod()
+        ax.plot(w.index, w, color=col, lw=2)
+        plots.label_line_end(ax, w.index[-1], float(w.iloc[-1]), lab, col)
+    ax.yaxis.set_major_formatter(lambda v, _: f"₹{v:g}")
+    ax.set_ylabel("₹1 invested each January, rebalanced yearly")
+    ax.set_title("Ranked on the past 3 years, held the next year", fontsize=10.5, loc="left")
+    fig.suptitle("Funds kept a small alpha after the four factors, mostly inside the index funds' "
+                 "range",
+                 x=0.01, ha="left", fontweight="bold")
+    fig.tight_layout()
+    plots.save(fig, out_dir, "funds")
+    plt.close(fig)
+    return res
+
+
 REPORTS: dict[str, Callable[[Path], dict]] = {
     "factors": report_factors,
     "momentum": report_momentum,
     "stocks": report_stocks,
     "grs": report_grs,
+    "funds": report_funds,
 }
