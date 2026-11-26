@@ -195,7 +195,98 @@ def report_momentum(out_dir: Path) -> dict:
     return res
 
 
+def report_stocks(out_dir: Path) -> dict:
+    """Single NSE stocks from the archive on CAPM, three and four factors. In-sample: every
+    stock with 60+ months, February 2013 to December 2025: R², adjusted R², loadings and how many
+    are significant. Out of sample: loadings fitted on 2013-2019 explain 2020-2025 from that
+    period's factor returns (stocks with 48+ months in each half), and how well each loading
+    keeps its cross-stock ranking from one half to the next. Needs the NSE bhavcopy archive."""
+    from ff import exposures as ex
+    from ff import momentum
+
+    f = ex.factors()
+    px, _ = momentum.monthly_panel()
+    e = ex.stock_excess(px, f)
+    ins = ex.in_sample(e, f)
+    oo = ex.out_of_sample(e, f)
+    res = {"in-sample": f"{ins['symbol'].nunique()} stocks with 60+ months, "
+                        f"{e.index[1]:%b %Y}-{e.index[-1]:%b %Y}"}
+    for m in ex.MODELS:
+        g = ins[ins["model"] == m]
+        res[f"  {m}"] = (f"median R² {g['r2'].median():.1%}, adjusted {g['adj_r2'].median():.1%}; "
+                         f"median alpha {g['alpha'].median():+.1%} a year, |t| > 2 for "
+                         f"{(g['t_alpha'].abs() > 2).mean():.0%}")
+    g = ins[ins["model"] == "4-factor"]
+    for c in ["MKT", "SMB", "HML", "WML"]:
+        res[f"  4-factor {c} loading"] = (
+            f"median {g[c].median():+.2f}; t > 2 for {(g[f't_{c}'] > 2).mean():.0%}, "
+            f"t < -2 for {(g[f't_{c}'] < -2).mean():.0%}")
+    res["out of sample"] = (f"{oo['symbol'].nunique()} stocks with 48+ months in 2013-2019 and "
+                            "in 2020-2025")
+    w = oo.pivot(index="symbol", columns="model", values="oos_r2")
+    for m in ex.MODELS:
+        g = oo[oo["model"] == m]
+        res[f"  {m} (out of sample)"] = (
+            f"median R² of 2020-2025 from 2013-2019 loadings {g['oos_r2'].median():.1%}; "
+            f"refitted on 2020-2025 itself {g['r2_second'].median():.1%}")
+    res["  3-factor beats CAPM out of sample"] = (
+        f"{(w['3-factor'] > w['CAPM']).mean():.0%} of stocks")
+    res["  4-factor beats 3-factor out of sample"] = (
+        f"{(w['4-factor'] > w['3-factor']).mean():.0%} of stocks")
+    stab = {}
+    capm = oo[oo["model"] == "CAPM"]
+    stab["market (CAPM beta)"] = capm["MKT_1"].rank().corr(capm["MKT_2"].rank())
+    q = oo[oo["model"] == "4-factor"]
+    for c, lab in (("MKT", "market (4-factor)"), ("SMB", "size"), ("HML", "value"),
+                   ("WML", "momentum")):
+        stab[lab] = q[f"{c}_1"].rank().corr(q[f"{c}_2"].rank())
+    res["rank correlation of loadings, 2013-2019 against 2020-2025"] = "; ".join(
+        f"{k} {v:.2f}" for k, v in stab.items())
+    first = px.apply(lambda s: s.first_valid_index())
+    res["  archive stocks first priced after June 2013"] = (
+        f"{(first > pd.Timestamp('2013-06-30')).sum()} of {px.shape[1]}")
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6))
+    ax = axes[0]
+    x = np.arange(len(ex.MODELS))
+    groups = (("in-sample, 2013-2025", [ins[ins["model"] == m]["r2"].median() for m in ex.MODELS],
+               plots.MUTED),
+              ("2020-2025 from 2013-2019 loadings",
+               [oo[oo["model"] == m]["oos_r2"].median() for m in ex.MODELS], plots.SERIES[0]))
+    for i, (lab, v, col) in enumerate(groups):
+        bars = ax.bar(x + (i - 0.5) * 0.38, [100 * a for a in v], 0.36, color=col, label=lab)
+        for b, a in zip(bars, v, strict=True):
+            ax.annotate(f"{100 * a:.0f}%", (b.get_x() + b.get_width() / 2, b.get_height()),
+                        xytext=(0, 3), textcoords="offset points", ha="center", fontsize=8.5,
+                        color=plots.TEXT)
+    ax.set_xticks(x, list(ex.MODELS))
+    ax.set_ylabel("median share of a stock's monthly\nmoves explained (R², %)")
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    ax.margins(y=0.25)
+    ax.set_title("Three factors beat the market alone, out of sample too", fontsize=10.5, loc="left")
+    ax = axes[1]
+    labs = list(stab)
+    y = np.arange(len(labs))[::-1]
+    cols = [plots.COLORS["MKT"], plots.COLORS["MKT"], plots.COLORS["SMB"], plots.COLORS["HML"],
+            plots.COLORS["WML"]]
+    ax.barh(y, [stab[k] for k in labs], color=cols, height=0.6)
+    for yy, k in zip(y, labs, strict=True):
+        ax.text(stab[k] + 0.01, yy, f"{stab[k]:.2f}", va="center", fontsize=8.5, color=plots.TEXT)
+    ax.set_yticks(y, labs)
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("rank correlation across stocks,\n2013-2019 loading against 2020-2025")
+    ax.set_title("Size and value loadings carried over; momentum's didn't",
+                 fontsize=10.5, loc="left")
+    fig.suptitle("Size and value helped explain NSE stocks; momentum didn't",
+                 x=0.01, ha="left", fontweight="bold")
+    fig.tight_layout()
+    plots.save(fig, out_dir, "stocks")
+    plt.close(fig)
+    return res
+
+
 REPORTS: dict[str, Callable[[Path], dict]] = {
     "factors": report_factors,
     "momentum": report_momentum,
+    "stocks": report_stocks,
 }

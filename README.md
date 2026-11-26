@@ -16,7 +16,7 @@ market, size, value and momentum exposures and what is left over, computed in yo
 
 - [x] What market, size, value and momentum earned in India, 1993–2025, by half, with their worst falls
 - [x] Momentum rebuilt from the NSE archive and checked against the library's factor
-- [ ] CAPM against three and four factors on single stocks: how much each explains, and stable loadings
+- [x] CAPM against three and four factors on single stocks: how much each explains, and stable loadings
 - [ ] Do the factors price the size-value portfolios? The GRS test for CAPM, three and four factors
 - [ ] Mutual funds: is their alpha just size, value and momentum? Out of sample
 - [ ] Factor crashes: momentum and value drawdowns, and a risk-scaling rule chosen on early years
@@ -77,12 +77,38 @@ both cover, February 2014 to December 2025, changing one choice at a time. Nothi
   and 0.74 in 2020–2025 (6.7% against 9.3%).
 - **Winners change slowly.** On average 17% of the winners list was replaced each month.
 
+### 3. Size and value helped explain NSE stocks; momentum didn't
+
+<a href="docs/img/stocks.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/stocks.png"><img src="docs/img/stocks.gif" alt="Median share of NSE stocks' monthly moves explained by CAPM, three and four factors, in-sample and out of sample, and how well each loading kept its ranking from 2013-2019 to 2020-2025" width="720"></picture></a>
+
+Each stock's monthly return in the NSE archive (split-adjusted month-end prices, so dividends are
+left out) minus IIMA's risk-free rate is regressed on the market alone (CAPM), on market, size and
+value (three factors), and on those plus momentum (four factors), with Newey-West t (3 lags).
+In-sample: the 494 stocks with at least 60 months between February 2013 and December 2025. Out of
+sample: for the 389 stocks with at least 48 months in each half, loadings fitted on 2013–2019
+predict each 2020–2025 month from that month's factor returns, with no alpha; the score is the
+share of the stock's 2020–2025 variation that prediction explains. The archive holds stocks that
+were among its most-traded at some point from 2013 (140 of its 556 stocks were first priced after
+June 2013), so in-sample alphas are not evidence of skill.
+
+- **The market alone explained about a quarter.** CAPM's median R² was 24.5% in-sample; three
+  factors 30.3%, four 31.4%.
+- **Three factors kept their edge out of sample.** Loadings from 2013–2019 explained a median 23.5%
+  of 2020–2025 with CAPM, 26.5% with three factors and 25.2% with four; three factors beat CAPM for
+  71% of stocks, and four beat three for only 42%.
+- **Most stocks leaned small, and many cheap.** Measured against IIMA's factors, where big means the
+  top 10% of all listed companies, the median size loading was +0.40 (significantly positive for
+  44% of stocks) and value +0.19 (28%); momentum −0.16, significantly negative for 14%.
+- **Size and value loadings carried over; momentum's didn't.** Ranked across stocks, 2013–2019
+  loadings matched 2020–2025 with a correlation of 0.55 for size, 0.44 for value and 0.18 for
+  momentum. CAPM beta kept 0.52, but the market loading inside the four-factor model only 0.11.
+
 ## Quick start
 
 ```bash
 uv sync
 uv run python scripts/fetch_data.py   # IIMA factor library -> data/iima/
-uv run ff report factors              # topics: factors, momentum
+uv run ff report factors              # topics: factors, momentum, stocks
 uv run python scripts/build_site.py   # factor lab -> site/index.html
 uv run pytest
 ```
@@ -104,6 +130,8 @@ it.
 - `src/ff/lake.py`: NIFTY's monthly return from the local NSE archive.
 - `src/ff/momentum.py`: month-end prices and past-year turnover from the archive, and winners
   minus losers built the IIMA way (size by turnover, equal or turnover weights).
+- `src/ff/exposures.py`: single stocks on CAPM, three and four factors: fits, out-of-sample
+  explanation from earlier loadings, and loadings in each half.
 - `src/ff/reports.py`: README findings, reproducible with `ff report <topic>`.
 - Conventions: returns are monthly and simple, in decimals; averages are 12 × the monthly mean,
   volatility √12 × the monthly standard deviation, compounded growth over months ÷ 12 years; t
