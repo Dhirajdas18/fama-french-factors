@@ -56,8 +56,7 @@ release {d["release"]}, {d["first"]} to {d["last"]}, survivorship-bias adjusted.
 market return minus the risk-free rate; the others are long-short portfolios of listed companies
 sorted on size, book-to-market and past 12-month return (skipping the latest month), with
 micro-cap and penny stocks excluded. November 1994, which has no long-short returns in the source,
-is left out. Their market return trails NIFTY’s price index in some years
-(see the repository), so treat it as IIMA’s own broad market.</li>
+is left out. The market is IIMA’s broad market of listed companies, not NIFTY.</li>
 <li>Growth of ₹1 compounds the monthly returns; averages are 12 times the monthly mean,
 volatility √12 times the monthly standard deviation, compounded growth uses the number of months
 divided by 12, and t is the mean over its Newey-West standard error with 3 lags.</li>

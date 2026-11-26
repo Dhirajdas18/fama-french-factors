@@ -38,4 +38,5 @@ def test_latest_release_and_factor_parsing(tmp_path, monkeypatch):
     monkeypatch.setenv("FF_DATA_DIR", str(tmp_path))
     f = data.factors()
     assert list(f.index) == [pd.Timestamp("1993-11-30")]
-    assert np.isclose(f["MKT"].iloc[0], 0.035) and np.isclose(f["SMB"].iloc[0], -0.01)
+    assert np.isclose(f["MKT"].iloc[0], 0.04) and np.isclose(f["MARKET"].iloc[0], 0.045)
+    assert np.isclose(f["SMB"].iloc[0], -0.01)

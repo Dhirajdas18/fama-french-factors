@@ -21,9 +21,9 @@ def _fmt(s: dict) -> str:
 def report_factors(out_dir: Path) -> dict:
     """What market, size, value and momentum earned in India: IIMA's monthly factors (the latest
     release, survivorship-bias adjusted), whole period and two halves, their worst falls and how
-    they move together. The market factor is the market's return minus the risk-free rate; the
-    other three are long-short. Newey-West t (3 lags). Also IIMA's market return against NIFTY
-    from the NSE bhavcopy archive where both exist."""
+    they move together. The market factor is the market's return minus the risk-free rate (the
+    file's MF); the other three are long-short. Newey-West t (3 lags). Also the market's own
+    return (MF + RF) against NIFTY from the NSE bhavcopy archive where both exist."""
     from ff import data, stats
 
     f = data.factors()
@@ -47,14 +47,14 @@ def report_factors(out_dir: Path) -> dict:
     c = f[data.FACTORS].corr()
     res["correlations"] = "; ".join(f"{a}-{b} {c.at[a, b]:+.2f}" for i, a in enumerate(data.FACTORS)
                                     for b in data.FACTORS[i + 1:])
-    res["market return (MF) and risk-free (RF), compounded"] = (
-        f"MF {stats.summary(f['MF'])['cagr']:+.1%} a year, "
-        f"RF {stats.summary(f['RF'])['cagr']:+.1%}")
+    res["market's own return and risk-free, compounded"] = (
+        f"market {stats.summary(f['MARKET'])['cagr']:+.1%} a year, "
+        f"risk-free {stats.summary(f['RF'])['cagr']:+.1%}")
     try:
         from ff.lake import nifty_monthly
 
         n = nifty_monthly()
-        j = pd.concat([f["MF"], n], axis=1, join="inner").dropna()
+        j = pd.concat([f["MARKET"], n], axis=1, join="inner").dropna()
         g = (1 + j).prod() ** (12 / len(j)) - 1
         res["IIMA market against NIFTY (price index)"] = (
             f"{j.index[0]:%b %Y}-{j.index[-1]:%b %Y}, {len(j)} months: correlation "
@@ -92,7 +92,7 @@ def report_factors(out_dir: Path) -> dict:
     ax.set_title("Average a year, by half", fontsize=10.5, loc="left")
     ax.legend(frameon=False, fontsize=9)
     ax.margins(y=0.2)
-    fig.suptitle("Momentum and value paid in India; size and the market's premium over cash didn't",
+    fig.suptitle("Momentum and value paid most in India; small companies didn't beat big ones",
                  x=0.01, ha="left", fontweight="bold")
     fig.tight_layout()
     plots.save(fig, out_dir, "factors")

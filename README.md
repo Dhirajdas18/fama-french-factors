@@ -24,18 +24,19 @@ market, size, value and momentum exposures and what is left over, computed in yo
 
 ## Findings
 
-### 1. Momentum and value paid in India; size and the market's premium over cash didn't
+### 1. Momentum and value paid most in India; small companies didn't beat big ones
 
 <a href="docs/img/factors.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/factors.png"><img src="docs/img/factors.gif" alt="Growth of one rupee in the Indian market, size, value and momentum factors from 1993 to 2025, and each factor's average return a year in 1993-2009 and 2010-2025" width="720"></picture></a>
 
 IIM Ahmedabad's monthly factors (release 2025-12, November 1993 to December 2025, 385 months;
 November 1994 has no long-short returns and is left out), survivorship-bias adjusted. Market is
-the market's return minus the risk-free rate; size (small minus big), value (cheap minus expensive
-on book-to-market) and momentum (last year's winners minus losers, skipping the latest month) are
-long-short portfolios of listed companies, micro-caps and penny stocks excluded. Each factor's
-average a year is 12 times its monthly mean, with a Newey-West t (3 lags); compounded growth uses
-calendar years; the halves are 1993–2009 and 2010–2025. Nothing is fitted. The library's market
-return is checked against NIFTY from the local archive where both exist.
+the market's return minus the risk-free rate (the library's MF column, which matches its own
+published market premium of 4.93% a year since 1994); size (small minus big), value (cheap minus
+expensive on book-to-market) and momentum (winners minus losers on past returns) are long-short
+portfolios of listed companies, micro-caps and penny stocks excluded. Each factor's average a year
+is 12 times its monthly mean, with a Newey-West t (3 lags); compounded growth uses calendar years;
+the halves are 1993–2009 and 2010–2025. Nothing is fitted. The market's own return is checked
+against NIFTY from the local archive where both exist.
 
 - **Momentum paid most.** Winners beat losers by 13.3% a year on average (t 2.84), 10.9% a year
   compounded; 14.8% (t 3.70) in 2010–2025. Over five-year windows it compounded between −2.3% and
@@ -44,10 +45,10 @@ return is checked against NIFTY from the local archive where both exist.
   and 6.9% in 2010–2025 (t 1.7 each). Its worst fall was −59%, from October 1994 to February 2000.
 - **Size didn't pay.** Small minus big averaged −2.9% a year (t −0.88): −6.8% in 1993–2009 and
   +1.0% since, and it fell 86% from January 1995 to March 2009.
-- **The market barely beat cash.** The market factor averaged +1.9% a year (t 0.39) and compounded
-  −1.2%: the library's market return compounded 5.7% a year against 6.9% for the risk-free rate. That
-  market is not NIFTY: from March 2013 to December 2025 it compounded 9.1% a year against 12.6% for
-  NIFTY's price index (monthly correlation 0.91).
+- **The market beat cash, with deep falls.** The market premium averaged 8.6% a year (t 1.78) and
+  compounded 5.7%; the market itself compounded 13.0% a year against 6.9% for cash. It fell 75%
+  from August 1994 to September 2001. From March 2013 it compounded 15.9% a year against 12.6% for
+  NIFTY's price index, which leaves out dividends (monthly correlation 0.92).
 - **Momentum and value offset each other.** Their monthly correlation was −0.37; market and size
   +0.25, market and value +0.22.
 
@@ -81,8 +82,8 @@ it.
   volatility √12 × the monthly standard deviation, compounded growth over months ÷ 12 years; t
   statistics are Newey-West with 3 lags.
 - Data: IIM Ahmedabad's Indian Fama-French-momentum data library (Agarwalla, Jacob and Varma,
-  2017, Size, Value, and Momentum in Indian Equities, Vikalpa 42(4)), the survivorship-bias adjusted
-  series; AMFI net asset values through mfapi.in; NIFTY from a local NSE archive.
+  2013, Four factor model in Indian equities market, IIMA Working Paper 2013-09-05), the
+  survivorship-bias adjusted series; AMFI net asset values through mfapi.in; NIFTY from a local NSE archive.
 - Charts: one validated palette; README charts are animated GIFs with a static fallback for
   reduced-motion users.
 

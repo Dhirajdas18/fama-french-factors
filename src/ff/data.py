@@ -1,8 +1,9 @@
-"""IIM Ahmedabad's Indian Fama-French-momentum data library (Agarwalla, Jacob and Varma, 2017):
+"""IIM Ahmedabad's Indian Fama-French-momentum data library (Agarwalla, Jacob and Varma):
 the latest release's survivorship-bias adjusted files, fetched into data/iima/ (not committed).
 
 Factor columns, in percent a period: SMB (small minus big), HML (high minus low book-to-market),
-WML (winners minus losers, momentum), MF (market return) and RF (risk-free).
+WML (winners minus losers, momentum), MF (the market premium: market return minus risk-free,
+which matches the library's own published "market premium") and RF (risk-free).
 """
 
 import os
@@ -14,8 +15,9 @@ from pathlib import Path
 import pandas as pd
 
 LIBRARY = "https://faculty.iima.ac.in/iffm/Indian-Fama-French-Momentum/"
-CITATION = ("Agarwalla, S. K., Jacob, J. and Varma, J. R. (2017), Size, Value, and Momentum in "
-            "Indian Equities, Vikalpa 42(4), 211-219")
+CITATION = ("Agarwalla, S. K., Jacob, J. and Varma, J. R. (2013), Four factor model in Indian "
+            "equities market, Working Paper W.P. No. 2013-09-05, Indian Institute of Management, "
+            "Ahmedabad")
 FILES = {
     "factors_monthly": "FourFactors_and_Market_Returns_Monthly",
     "factors_daily": "FourFactors_and_Market_Returns_Daily",
@@ -77,15 +79,17 @@ def _read(key: str) -> pd.DataFrame:
 
 
 def factors(freq: str = "monthly") -> pd.DataFrame:
-    """Factor returns in decimals, indexed by month-end (monthly) or day: MKT (market minus
-    risk-free), SMB, HML, WML, RF and MF. Periods missing any of them are dropped (the source has
+    """Factor returns in decimals, indexed by month-end (monthly) or day: MKT (the market
+    premium, the file's MF), SMB, HML, WML, RF and MARKET (the market's own return, MF + RF).
+    Periods missing any of them are dropped (the source has
     no market return for its first month and no long-short returns for November 1994)."""
     d = _read(f"factors_{freq}") / 100
     d = d.dropna(subset=["MF", "RF", "SMB", "HML", "WML"])
-    d["MKT"] = d["MF"] - d["RF"]
+    d["MKT"] = d["MF"]
+    d["MARKET"] = d["MF"] + d["RF"]
     if freq == "monthly":
         d.index = d.index + pd.offsets.MonthEnd(0)
-    return d[FACTORS + ["RF", "MF"]]
+    return d[FACTORS + ["RF", "MARKET"]]
 
 
 def portfolios(key: str) -> pd.DataFrame:
