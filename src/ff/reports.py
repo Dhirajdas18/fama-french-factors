@@ -542,6 +542,108 @@ def report_crashes(out_dir: Path) -> dict:
     return res
 
 
+def report_verdict(out_dir: Path) -> dict:
+    """Which factors to use, and whether to tilt. (1) Value and momentum together: a 50/50 mix
+    (nothing fitted) and maximum-Sharpe weights fitted on 1994-2009, Sharpe ratios and worst falls
+    in each half. (2) Long-only: IIMA's winner and value portfolios against the market's own
+    return. (3) A long-only momentum tilt an investor could hold: the top 30% by 12-1 momentum
+    within the reference model's point-in-time top 200, equally weighted, monthly, after NSE delivery costs
+    (verdict.BUY / SELL), against the equal-weighted top 200 and NIFTY. Before tax, no dividends.
+    Needs the NSE bhavcopy archive for (3)."""
+    from ff import data, momentum, stats, verdict
+    from ff.lake import nifty_monthly
+
+    m = data.factors()
+
+    def sh(x):
+        return float(x.mean() / x.std() * np.sqrt(12))
+
+    res = {}
+    mix = 0.5 * m["HML"] + 0.5 * m["WML"]
+    w2 = verdict.tangency(m[["HML", "WML"]].loc[:"2009"])
+    w4 = verdict.tangency(m[data.FACTORS].loc[:"2009"])
+    fit2 = (m[["HML", "WML"]] * w2).sum(axis=1)
+    fit4 = (m[data.FACTORS] * w4).sum(axis=1)
+    sharpe = {}
+    for lab, a, b in HALVES:
+        row = {"value": sh(m["HML"].loc[a:b]), "momentum": sh(m["WML"].loc[a:b]),
+               "50/50 mix": sh(mix.loc[a:b]), "fitted value+momentum": sh(fit2.loc[a:b]),
+               "fitted all four": sh(fit4.loc[a:b])}
+        sharpe[lab] = row
+        res[f"Sharpe ratios {lab}"] = "; ".join(f"{k} {v:.2f}" for k, v in row.items())
+        res[f"  worst fall {lab}"] = (
+            f"value {stats.summary(m['HML'].loc[a:b])['dd']:.0%}, momentum "
+            f"{stats.summary(m['WML'].loc[a:b])['dd']:.0%}, 50/50 mix "
+            f"{stats.summary(mix.loc[a:b])['dd']:.0%}")
+    res["  weights fitted on 1994-2009"] = (
+        "value+momentum " + ", ".join(f"{k} {v:.2f}" for k, v in w2.items())
+        + "; all four " + ", ".join(f"{k} {v:.2f}" for k, v in w4.items()))
+    sv, sm = data.portfolios("size_value"), data.portfolios("size_momentum")
+    j = sv.join(sm).join(m[["MARKET"]], how="inner")
+    for c, lab in (("WB", "big winners"), ("WS", "small winners"), ("BV", "big value"),
+                   ("SV", "small value")):
+        for per, a, b in (("1993-2025", None, None), ("2010-2025", "2010", None)):
+            x = (j[c] - j["MARKET"]).loc[a:b].dropna()
+            s_ = stats.summary(x)
+            res[f"long-only {lab} minus the market, {per}"] = (
+                f"{len(x)} months: {s_['mean']:+.1%} a year (t {s_['t']:.2f}), tracking error "
+                f"{s_['vol']:.1%}")
+    px, _ = momentum.monthly_panel()
+    w = verdict.winners_long_only(px, momentum.monthly_universe())
+    n = nifty_monthly().reindex(w.index)
+    res["long-only liquid winners"] = (
+        f"{len(w)} months ({w.index[0]:%b %Y}-{w.index[-1]:%b %Y}); one-way turnover "
+        f"{w['turnover'].mean():.0%} a month, costs {12 * w['cost'].mean():.2%} a year")
+    for c, lab in (("gross", "before costs"), ("net", "after costs"), ("bench", "top 200 equal")):
+        s_ = stats.summary(w[c])
+        res[f"  {lab}"] = (f"compounded {s_['cagr']:+.1%} a year, volatility {s_['vol']:.1%}, "
+                           f"worst fall {s_['dd']:.0%}")
+    res["  NIFTY (price index), same months"] = f"compounded {stats.summary(n)['cagr']:+.1%} a year"
+    for c, lab in (("gross", "before costs"), ("net", "after costs")):
+        x = w[c] - w["bench"]
+        s_ = stats.summary(x)
+        res[f"  winners minus top 200, {lab}"] = (
+            f"{s_['mean']:+.1%} a year (t {s_['t']:.2f}); 2014-2019 "
+            f"{12 * x.loc[:'2019'].mean():+.1%}, 2020-2026 {12 * x.loc['2020':].mean():+.1%}")
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6))
+    ax = axes[0]
+    keys = list(sharpe["2010-2025"])
+    x = np.arange(len(keys))
+    for i, (lab, col) in enumerate((("1993-2009", plots.MUTED), ("2010-2025", plots.SERIES[0]))):
+        v = [sharpe[lab][k] for k in keys]
+        bars = ax.bar(x + (i - 0.5) * 0.38, v, 0.36, color=col, label=lab)
+        for b_, vv in zip(bars, v, strict=True):
+            ax.annotate(f"{vv:.2f}", (b_.get_x() + b_.get_width() / 2, b_.get_height()),
+                        xytext=(0, 3), textcoords="offset points", ha="center", fontsize=8,
+                        color=plots.TEXT)
+    ax.set_xticks(x, ["value", "momentum", "50/50\nmix", "fitted\nvalue+mom.", "fitted\nall four"],
+                  fontsize=8.5)
+    ax.set_ylabel("Sharpe ratio (average ÷ volatility,\na year)")
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    ax.margins(y=0.2)
+    ax.set_title("Out of sample, a plain 50/50 mix beat the fitted mixes", fontsize=10.5,
+                 loc="left")
+    ax = axes[1]
+    for ser, lab, col in ((w["net"], "liquid winners, after costs", plots.COLORS["WML"]),
+                          (w["bench"], "top 200, equal weights", plots.MUTED),
+                          (n.fillna(0.0), "NIFTY (price index)", plots.SERIES[0])):
+        g = (1 + ser).cumprod()
+        ax.plot(g.index, g, color=col, lw=2)
+        plots.label_line_end(ax, g.index[-1], float(g.iloc[-1]), lab, col)
+    ax.set_yscale("log")
+    ax.set_yticks([1, 2, 4, 8])
+    ax.set_yticklabels(["₹1", "₹2", "₹4", "₹8"])
+    ax.set_ylabel("₹1 compounded monthly")
+    ax.set_title("A long-only momentum tilt, after delivery costs", fontsize=10.5, loc="left")
+    fig.suptitle("Use value and momentum together; momentum survived costs as a long-only tilt",
+                 x=0.01, ha="left", fontweight="bold")
+    fig.tight_layout()
+    plots.save(fig, out_dir, "verdict")
+    plt.close(fig)
+    return res
+
+
 REPORTS: dict[str, Callable[[Path], dict]] = {
     "factors": report_factors,
     "momentum": report_momentum,
@@ -549,4 +651,5 @@ REPORTS: dict[str, Callable[[Path], dict]] = {
     "grs": report_grs,
     "funds": report_funds,
     "crashes": report_crashes,
+    "verdict": report_verdict,
 }

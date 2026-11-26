@@ -20,7 +20,7 @@ market, size, value and momentum exposures and what is left over, computed in yo
 - [x] Do the factors price the size-value portfolios? The GRS test for CAPM, three and four factors
 - [x] Mutual funds: is their alpha just size, value and momentum? Out of sample
 - [x] Factor crashes: momentum and value drawdowns, and a risk-scaling rule chosen on early years
-- [ ] Verdict: which factors to use for risk and attribution, and whether to tilt towards any
+- [x] Verdict: which factors to use for risk and attribution, and whether to tilt towards any
 
 ## Findings
 
@@ -183,13 +183,45 @@ worst months and falls are compared after setting both versions to the same vola
   size; at the same volatility scaled momentum's worst month was −18.5% against −18.0% and its worst
   fall −35% against −33%.
 
+### 7. Use value and momentum together; momentum survived costs as a long-only tilt
+
+<a href="docs/img/verdict.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/verdict.png"><img src="docs/img/verdict.gif" alt="Sharpe ratios of value, momentum, a 50/50 mix and fitted mixes in 1993-2009 and 2010-2025, and growth of one rupee in long-only liquid momentum winners after costs against the equal-weighted top 200 and NIFTY, 2014-2026" width="720"></picture></a>
+
+The findings put together, in three checks. First, value and momentum combined: a 50/50 mix with
+nothing fitted, and maximum-Sharpe weights fitted on 1994–2009 (value and momentum only, and all
+four factors) and scored on 2010–2025. Second, what a long-only investor could capture: IIMA's
+long-only winner and value portfolios against the market's own return. Third, a long-only momentum
+tilt built from the archive: each month-end, the top 30% by 12-1 momentum within the reference model's
+point-in-time universe (that day's 200 most-traded stocks priced at ₹50 or more, so no look-ahead
+in which stocks are eligible), equally weighted, paying NSE delivery costs on every trade (STT,
+stamp duty, exchange and SEBI charges with GST, and 5 bp of slippage each side, as checked in
+momentum-after-costs), from February 2014 to November 2026, against the equally weighted top 200
+and NIFTY's price index. Before tax and without dividends; the IIMA portfolios carry no costs.
+
+- **A plain 50/50 mix did best out of sample.** Its Sharpe ratio was 0.69 in 1993–2009 and 1.27 in
+  2010–2025, against 0.42 for value and 0.90 for momentum alone; its worst fall in 2010–2025 was −12%
+  against −50% and −33%. Weights fitted on 1994–2009 scored 1.16 (value and momentum) and 0.93 (all
+  four, which shorted size) out of sample.
+- **Long-only winners beat the market.** IIMA's big winners beat the market's own return by 6.8% a
+  year from 1993 (t 2.80), 3.6% since 2010 (t 1.52); small winners by 10.5% since 2010 (t 3.02).
+  Long-only value was noisier: big value +9.6% a year (t 1.56) with a 28.9% tracking error.
+- **The liquid momentum tilt survived costs.** Trading 24% of the book a month cost 0.93% a year. It
+  compounded 19.8% a year after costs against 15.4% for the equally weighted top 200 and 11.9% for
+  NIFTY's price index; it beat the top 200 by 3.9% a year after costs (t 1.98), 4.3% in 2014–2019
+  and 3.6% in 2020–2026, and its worst fall was −30% against −43%.
+- **The verdict.** For risk, use market, size and value (finding 3). For alpha, use all four factors
+  and judge against same-style index funds (findings 4 and 5). Tilt towards momentum and value
+  together rather than either alone, long-only, and expect momentum's crashes in rebounds after bear
+  markets (finding 6); size earned nothing here (finding 1).
+
 ## Quick start
 
 ```bash
 uv sync
 uv run python scripts/fetch_data.py   # IIMA factor library -> data/iima/
-uv run ff report factors              # topics: factors, momentum, stocks, grs, crashes,
-                                      # funds (after scripts/fetch_funds.py)
+uv run python scripts/fetch_funds.py  # fund NAVs from mfapi.in -> data/funds/ (for funds)
+uv run ff report factors              # topics: factors, momentum, stocks, grs, funds,
+                                      # crashes, verdict
 uv run python scripts/build_site.py   # factor lab -> site/index.html
 uv run pytest
 ```
@@ -218,6 +250,8 @@ it.
   styles from fund names, index funds as the baseline, alphas and the ranking test.
 - `src/ff/crashes.py`: volatility scaling from daily factor returns (look-back and target chosen on
   the training years), and skew.
+- `src/ff/verdict.py`: maximum-Sharpe weights, NSE delivery costs, and the long-only momentum tilt
+  within the reference model's point-in-time top 200.
 - `src/ff/reports.py`: README findings, reproducible with `ff report <topic>`.
 - Conventions: returns are monthly and simple, in decimals; averages are 12 × the monthly mean,
   volatility √12 × the monthly standard deviation, compounded growth over months ÷ 12 years; t
