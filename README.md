@@ -19,7 +19,7 @@ market, size, value and momentum exposures and what is left over, computed in yo
 - [x] CAPM against three and four factors on single stocks: how much each explains, and stable loadings
 - [x] Do the factors price the size-value portfolios? The GRS test for CAPM, three and four factors
 - [x] Mutual funds: is their alpha just size, value and momentum? Out of sample
-- [ ] Factor crashes: momentum and value drawdowns, and a risk-scaling rule chosen on early years
+- [x] Factor crashes: momentum and value drawdowns, and a risk-scaling rule chosen on early years
 - [ ] Verdict: which factors to use for risk and attribution, and whether to tilt towards any
 
 ## Findings
@@ -157,12 +157,38 @@ nothing after the ranking date is used.
   a four-factor alpha of +3.7% (t 2.20), the bottom third 16.1% and +2.4% (t 1.60); top minus
   bottom +1.4% a year (t 2.10).
 
+### 6. Momentum's crashes came in rebounds; scaling by volatility didn't help out of sample
+
+<a href="docs/img/crashes.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/crashes.png"><img src="docs/img/crashes.gif" alt="Monthly momentum returns against the market's, marking months after bear markets, and each factor's Sharpe ratio unscaled and volatility-scaled in 1994-2009 and 2010-2025" width="720"></picture></a>
+
+IIMA's monthly and daily factors, November 1993 to December 2025. A month counts as after a bear
+market when the market's return above cash over the previous 24 months was below zero (142 of 361
+months). Volatility scaling, after Barroso and Santa-Clara (2015): each month a factor is held at
+a weight of a target volatility over its realised volatility from the previous month-end's daily
+returns, capped at 2. The look-back (21, 63, 126 or 252 trading days) is the one with the best
+Sharpe ratio on 1994–2009, and the target is the factor's 1994–2009 volatility; both are then
+fixed and scored on 2010–2025. Because 2010–2025 was calmer, scaled weights averaged 1.7–1.9, so
+worst months and falls are compared after setting both versions to the same volatility.
+
+- **Momentum crashed in rebounds after bear markets.** After a bear market its correlation with
+  the market was −0.50 (otherwise +0.20), and in the 76 such months when the market rose it averaged
+  −26.8% a year. Four of its six worst months came then: November 2001 (−27.6%, market +12.4%), May
+  2009 (−25.0%, market +33.6%), December 2008 and March 1998.
+- **Each factor's worst months.** Market −29.1% (October 2008); size −14.1% (March 2020); value
+  −19.0% (January 2000); momentum −27.6% (November 2001).
+- **Scaling looked good where it was chosen.** On 1994–2009, scaled momentum's Sharpe ratio was
+  0.64 against 0.38 unscaled; the market, size and value gained 0.03–0.10.
+- **Out of sample it didn't help.** On 2010–2025 the Sharpe ratios were 0.92 against 0.90 for
+  momentum, 0.36 against 0.43 for the market, 0.37 against 0.42 for value and 0.06 against 0.07 for
+  size; at the same volatility scaled momentum's worst month was −18.5% against −18.0% and its worst
+  fall −35% against −33%.
+
 ## Quick start
 
 ```bash
 uv sync
 uv run python scripts/fetch_data.py   # IIMA factor library -> data/iima/
-uv run ff report factors              # topics: factors, momentum, stocks, grs,
+uv run ff report factors              # topics: factors, momentum, stocks, grs, crashes,
                                       # funds (after scripts/fetch_funds.py)
 uv run python scripts/build_site.py   # factor lab -> site/index.html
 uv run pytest
@@ -190,6 +216,8 @@ it.
   explanation from earlier loadings, and loadings in each half.
 - `src/ff/funds.py`: diversified equity funds' NAV histories from mfapi.in (cached, not committed),
   styles from fund names, index funds as the baseline, alphas and the ranking test.
+- `src/ff/crashes.py`: volatility scaling from daily factor returns (look-back and target chosen on
+  the training years), and skew.
 - `src/ff/reports.py`: README findings, reproducible with `ff report <topic>`.
 - Conventions: returns are monthly and simple, in decimals; averages are 12 × the monthly mean,
   volatility √12 × the monthly standard deviation, compounded growth over months ÷ 12 years; t

@@ -460,10 +460,93 @@ def report_funds(out_dir: Path) -> dict:
     return res
 
 
+def report_crashes(out_dir: Path) -> dict:
+    """Factor crashes and volatility scaling. Crashes: each factor's worst months and skew, and
+    momentum after bear markets (the market's return above cash over the past 24 months below
+    zero), split by whether the market rose that month. Scaling (ff.crashes): look-back (21, 63,
+    126 or 252 trading days) chosen by Sharpe ratio on 1994-2009, target = the training
+    volatility, weight capped at 2; scored on 2010-2025 against the unscaled factor with Sharpe,
+    skew, and the worst month and worst fall after setting both to the same volatility."""
+    from ff import crashes, data, stats
+
+    m, d = data.factors(), data.factors("daily")
+    res = {}
+    for c in data.FACTORS:
+        worst = m[c].nsmallest(3)
+        res[f"{data.NAMES[c]} worst months"] = (
+            ", ".join(f"{t:%b %Y} {v:+.1%}" for t, v in worst.items())
+            + f"; skew {crashes.skew(m[c]):+.2f}")
+    past = (1 + m["MKT"]).rolling(24).apply(np.prod, raw=True).shift(1) - 1
+    bear = past < 0
+    known = past.notna()
+    for lab, mask in (("after a bear market", bear), ("otherwise", ~bear & known)):
+        x = m.loc[mask, "WML"]
+        up = mask & (m["MKT"] > 0)
+        res[f"momentum {lab}"] = (
+            f"{len(x)} months: mean {12 * x.mean():+.1%} a year, correlation with the market "
+            f"{x.corr(m.loc[mask, 'MKT']):+.2f}; in the {up.sum()} months the market rose, "
+            f"{12 * m.loc[up, 'WML'].mean():+.1%} a year")
+    wm = m["WML"].nsmallest(6)
+    res["  momentum's six worst months, market that month"] = ", ".join(
+        f"{t:%b %Y} {v:+.1%} (market {m.at[t, 'MKT']:+.1%}"
+        + (", after a bear market)" if bear[t] else ")") for t, v in wm.items())
+    out = {}
+    for c in data.FACTORS:
+        lk, tg, sh = crashes.choose(m[c], d[c], "2009-12-31")
+        sc = crashes.scaled(m[c], d[c], lk, tg)
+        tr = sc.loc[:"2009"]
+        te = sc.loc["2010":]
+        a, b = crashes.describe(te["r"]), crashes.describe(te["scaled"])
+        k = te["r"].std() / te["scaled"].std()  # same volatility as unscaled, for comparison
+        bb = crashes.describe(te["scaled"] * k)
+        o = stats.ols(te["scaled"].to_numpy(), te["r"].to_numpy())
+        out[c] = (tr["r"].mean() / tr["r"].std() * np.sqrt(12), sh[lk], a["sharpe"], b["sharpe"])
+        res[f"{data.NAMES[c]} scaled ({lk}-day look-back, target {tg:.0%})"] = (
+            f"Sharpe 1994-2009 {out[c][0]:.2f} unscaled, {out[c][1]:.2f} scaled (chosen there); "
+            f"2010-2025 {a['sharpe']:.2f} against {b['sharpe']:.2f}; skew {a['skew']:+.2f} against "
+            f"{b['skew']:+.2f}; at the same volatility worst month {a['worst']:+.1%} against "
+            f"{bb['worst']:+.1%}, worst fall {a['dd']:.0%} against {bb['dd']:.0%}; average weight "
+            f"{te['w'].mean():.2f}; scaled on unscaled alpha {12 * o['b'][0]:+.1%} "
+            f"(t {o['t'][0]:.2f})")
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6))
+    ax = axes[0]
+    for mask, col, lab in ((~bear & known, plots.MUTED, "otherwise"),
+                           (bear, plots.SERIES[1], "after a bear market")):
+        ax.scatter(100 * m.loc[mask, "MKT"], 100 * m.loc[mask, "WML"], s=14, color=col,
+                   alpha=0.8, label=lab, edgecolors="none")
+    ax.axhline(0, color=plots.TEXT_2, lw=0.8)
+    ax.axvline(0, color=plots.TEXT_2, lw=0.8)
+    ax.set_xlabel("market above cash that month, %")
+    ax.set_ylabel("momentum (winners minus losers)\nthat month, %")
+    ax.legend(frameon=False, fontsize=9, loc="lower left")
+    ax.set_title("Momentum crashed when markets rebounded after bear markets", fontsize=10.5,
+                 loc="left")
+    ax = axes[1]
+    x = np.arange(len(data.FACTORS))
+    labs = ("1994-2009 unscaled", "1994-2009 scaled", "2010-2025 unscaled", "2010-2025 scaled")
+    cols = (plots.GRID, plots.MUTED, plots.BLUE_RAMP[2], plots.SERIES[0])
+    for i, (lab, col) in enumerate(zip(labs, cols, strict=True)):
+        ax.bar(x + (i - 1.5) * 0.2, [out[c][i] for c in data.FACTORS], 0.19, color=col, label=lab)
+    ax.axhline(0, color=plots.TEXT_2, lw=0.8)
+    ax.set_xticks(x, [data.NAMES[c] for c in data.FACTORS])
+    ax.set_ylabel("Sharpe ratio (average ÷ volatility,\na year)")
+    ax.legend(frameon=False, fontsize=8.5, ncols=2, loc="upper left")
+    ax.margins(y=0.3)
+    ax.set_title("Volatility scaling helped only where it was chosen", fontsize=10.5, loc="left")
+    fig.suptitle("Momentum's crashes came in rebounds; scaling by volatility didn't help out of "
+                 "sample", x=0.01, ha="left", fontweight="bold")
+    fig.tight_layout()
+    plots.save(fig, out_dir, "crashes")
+    plt.close(fig)
+    return res
+
+
 REPORTS: dict[str, Callable[[Path], dict]] = {
     "factors": report_factors,
     "momentum": report_momentum,
     "stocks": report_stocks,
     "grs": report_grs,
     "funds": report_funds,
+    "crashes": report_crashes,
 }
