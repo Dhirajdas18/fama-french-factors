@@ -263,7 +263,8 @@ def report_stocks(out_dir: Path) -> dict:
     ax.set_ylabel("median share of a stock's monthly\nmoves explained (R², %)")
     ax.legend(frameon=False, fontsize=9, loc="upper left")
     ax.margins(y=0.25)
-    ax.set_title("Three factors beat the market alone, out of sample too", fontsize=10.5, loc="left")
+    ax.set_title("Three factors beat the market alone, out of sample too", fontsize=10.5,
+                 loc="left")
     ax = axes[1]
     labs = list(stab)
     y = np.arange(len(labs))[::-1]
