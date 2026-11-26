@@ -1,0 +1,168 @@
+<h3>What the factors earned</h3>
+<p class="note">How to read it: each line is ₹1 put into one factor at the start and left to compound
+month by month. Market is the market’s return above cash; size, value and momentum are long-short:
+small minus big stocks, cheap minus expensive, recent winners minus losers. A line that ends below
+₹1 lost money over the years you picked.</p>
+<div class="calc">
+  <div class="calc-controls">
+    <label>From <select id="ff-from"></select></label>
+    <label>To <select id="ff-to"></select></label>
+  </div>
+</div>
+<div id="ff-growth" class="sim-chart" role="img" aria-label="Growth of one rupee in the market, size, value and momentum factors over the chosen years, log scale"></div>
+<div class="table-scroll"><table class="data compact" id="ff-table"><thead><tr><th>Factor</th><th>Average a year</th><th>t</th><th>Compounded a year</th><th>Volatility</th><th>Worst fall</th></tr></thead><tbody></tbody></table></div>
+
+<h3>A mutual fund’s factor exposures</h3>
+<p class="note">How to read it: the fund’s monthly return above cash is explained by the factors.
+A market loading of 1 moves with the market; a positive size loading leans to small companies,
+value to cheap ones, momentum to recent winners. Alpha is what is left over a year after those
+exposures. A t above about 2 in size means the number is unlikely to be luck. Fund prices come
+live from mfapi.in (AMFI NAVs, after fees); direct plans start in 2013. Compare any fund’s alpha
+with the NIFTY 50 index fund’s: an index fund can’t beat its index, yet it shows a large alpha
+here, because the factor data’s market return trailed NIFTY (see the repository).</p>
+<div class="calc">
+  <div class="calc-controls">
+    <label>Fund <select id="ff-fund"></select></label>
+    <label>Or search <input id="ff-q" type="search" list="ff-hits" placeholder="e.g. flexi cap direct growth" autocomplete="off" spellcheck="false"></label>
+    <datalist id="ff-hits"></datalist>
+    <label>Model <select id="ff-model">
+      <option value="1">Market only (CAPM)</option>
+      <option value="3">Market, size, value (Fama-French)</option>
+      <option value="4" selected>Plus momentum (Carhart)</option>
+    </select></label>
+  </div>
+</div>
+<p class="note" id="ff-status" aria-live="polite"></p>
+<dl class="stat-grid" id="ff-stats"></dl>
+<div id="ff-load" class="sim-chart short" role="img" aria-label="Bar chart of the fund's factor loadings with their t statistics"></div>
+<div id="ff-fit" class="sim-chart" role="img" aria-label="Growth of one rupee in the fund above cash against the growth its factor exposures alone would give"></div>
+<script>
+$js
+(() => {
+  const D = $data;
+  const el = (id) => document.getElementById(id);
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const cfg = { displaylogo: false, responsive: true };
+  const narrowAt = (id) => el(id).clientWidth < 560;
+  const base = () => ({ paper_bgcolor: css("--surface"), plot_bgcolor: css("--surface"),
+    font: { family: getComputedStyle(document.body).fontFamily, color: css("--text-2"), size: 12 },
+    margin: { l: 64, r: 16, t: 32, b: 56 }, hovermode: "closest" });
+  const legendFor = (id) => narrowAt(id)
+    ? { orientation: "h", x: 0, y: -0.2, yanchor: "top", font: { size: 11 } } : { orientation: "h", y: 1.02, yanchor: "bottom", x: 0 };
+  const marginFor = (id, b = 56) => ({ l: 72, r: 16, t: narrowAt(id) ? 24 : 56, b: narrowAt(id) ? b + 64 : b });
+  const axis = (title, extra = {}) => Object.assign({ title: { text: title }, gridcolor: css("--grid"), zerolinecolor: css("--text-2") }, extra);
+  const pct = (x, dp = 1) => Number.isFinite(x) ? (x < 0 ? "−" : x > 0 ? "+" : "") + Math.abs(100 * x).toFixed(dp) + "%" : "–";
+  const num = (x, dp = 2) => Number.isFinite(x) ? (x < 0 ? "−" : "") + Math.abs(x).toFixed(dp) : "–";
+  const F = ["MKT", "SMB", "HML", "WML"], NAME = { MKT: "Market", SMB: "Size", HML: "Value", WML: "Momentum" };
+  const COL = $colors;
+  const years = [...new Set(D.months.map((m) => m.slice(0, 4)))];
+  for (const id of ["ff-from", "ff-to"]) el(id).innerHTML = years.map((y) => `<option>${y}</option>`).join("");
+  const FUNDS = $funds;
+  el("ff-fund").innerHTML = FUNDS.map(([c, n]) => `<option value="${c}">${n}</option>`).join("");
+
+  const h = new URLSearchParams(location.hash.slice(1));
+  el("ff-from").value = years.includes(h.get("from")) ? h.get("from") : years[0];
+  el("ff-to").value = years.includes(h.get("to")) ? h.get("to") : years[years.length - 1];
+  if (["1", "3", "4"].includes(h.get("model"))) el("ff-model").value = h.get("model");
+  let fund = /^\d+$/.test(h.get("fund") || "") ? h.get("fund") : String(FUNDS[0][0]);
+  if (!FUNDS.some(([c]) => String(c) === fund)) el("ff-fund").insertAdjacentHTML("beforeend", `<option value="${fund}">Scheme ${fund}</option>`);
+  el("ff-fund").value = fund;
+  const save = () => history.replaceState(null, "", "#" + new URLSearchParams({ from: el("ff-from").value, to: el("ff-to").value, model: el("ff-model").value, fund }));
+
+  const range = () => {
+    let a = el("ff-from").value, b = el("ff-to").value;
+    if (a > b) [a, b] = [b, a];
+    return D.months.map((m, i) => [m, i]).filter(([m]) => m.slice(0, 4) >= a && m.slice(0, 4) <= b);
+  };
+
+  function drawFactors() {
+    const rows = range(), x = rows.map(([m]) => m + "-28");
+    const tr = F.map((k) => {
+      let w = 1;
+      const y = rows.map(([, i]) => (w *= 1 + D[k][i]));
+      return { x, y, name: NAME[k], mode: "lines", line: { color: COL[k], width: 2 },
+               hovertemplate: `${NAME[k]}: ₹%{y:.2f} by %{x|%b %Y}<extra></extra>` };
+    });
+    Plotly.react("ff-growth", tr, Object.assign(base(), { legend: legendFor("ff-growth"), margin: marginFor("ff-growth"),
+      xaxis: axis(""), yaxis: axis("₹1 compounded", { type: "log", tickprefix: "₹" }) }), cfg);
+    el("ff-table").tBodies[0].innerHTML = F.map((k) => {
+      const s = FF.summary(rows.map(([, i]) => D[k][i]));
+      return `<tr><td>${NAME[k]}</td><td>${pct(s.mean)}</td><td>${num(s.t)}</td><td>${pct(s.cagr)}</td><td>${pct(s.vol, 1).replace("+", "")}</td><td>${pct(s.dd, 0)}</td></tr>`;
+    }).join("");
+  }
+
+  const cache = {};
+  async function navs(code) {
+    if (!cache[code]) {
+      const r = await fetch(`https://api.mfapi.in/mf/${code}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      if (!j.data || !j.data.length) throw new Error("no prices");
+      cache[code] = { name: j.meta.scheme_name, ret: FF.monthlyReturns(j.data) };
+    }
+    return cache[code];
+  }
+
+  let seq = 0;
+  async function drawFund() {
+    const my = ++seq, k = +el("ff-model").value, use = F.slice(0, k === 1 ? 1 : k);
+    el("ff-status").textContent = "Loading the fund’s prices…";
+    let f;
+    try { f = await navs(fund); } catch (e) {
+      if (my === seq) el("ff-status").textContent = `Couldn’t load scheme ${fund} from mfapi.in (${e.message}).`;
+      return;
+    }
+    if (my !== seq) return;
+    const rows = range().filter(([m]) => m in f.ret);
+    if (rows.length < 24) {
+      el("ff-status").textContent = `${f.name}: only ${rows.length} months overlap the factor data (up to ${D.last}) in these years; at least 24 are needed.`;
+      el("ff-stats").innerHTML = ""; Plotly.purge("ff-load"); Plotly.purge("ff-fit");
+      return;
+    }
+    const y = rows.map(([m, i]) => f.ret[m] - D.RF[i]);
+    const X = rows.map(([, i]) => use.map((q) => D[q][i]));
+    const o = FF.ols(y, X, 3);
+    el("ff-status").textContent = `${f.name}: ${rows.length} months, ${rows[0][0]} to ${rows[rows.length - 1][0]}.`;
+    const st = [["Alpha a year", `${pct(12 * o.b[0])} <span class="unit">t ${num(o.t[0])}</span>`]]
+      .concat(use.map((q, j) => [NAME[q], `${num(o.b[j + 1])} <span class="unit">t ${num(o.t[j + 1])}</span>`]))
+      .concat([["Explained (R²)", `${(100 * o.r2).toFixed(0)}%`]]);
+    el("ff-stats").innerHTML = st.map(([a, b]) => `<div><dt>${a}</dt><dd>${b}</dd></div>`).join("");
+    Plotly.react("ff-load", [{ type: "bar", x: use.map((q) => NAME[q]), y: o.b.slice(1), marker: { color: use.map((q) => COL[q]) },
+      customdata: o.t.slice(1), hovertemplate: "%{x}: %{y:.2f} (t %{customdata:.2f})<extra></extra>" }],
+      Object.assign(base(), { showlegend: false, margin: { l: 72, r: 16, t: 16, b: 40 }, xaxis: axis(""), yaxis: axis("loading") }), cfg);
+    let a = 1, b = 1;
+    const x = rows.map(([m]) => m + "-28");
+    const fy = y.map((v) => (a *= 1 + v));
+    const fx = X.map((r) => (b *= 1 + r.reduce((s, v, j) => s + v * o.b[j + 1], 0)));
+    Plotly.react("ff-fit", [
+      { x, y: fy, name: "the fund above cash", mode: "lines", line: { color: css("--accent"), width: 2 }, hovertemplate: "Fund: ₹%{y:.2f} by %{x|%b %Y}<extra></extra>" },
+      { x, y: fx, name: "its factor exposures alone", mode: "lines", line: { color: css("--muted"), width: 2, dash: "dot" }, hovertemplate: "Exposures: ₹%{y:.2f} by %{x|%b %Y}<extra></extra>" },
+    ], Object.assign(base(), { legend: legendFor("ff-fit"), margin: marginFor("ff-fit"), xaxis: axis(""), yaxis: axis("₹1 compounded above cash", { tickprefix: "₹" }) }), cfg);
+  }
+
+  let timer;
+  el("ff-q").addEventListener("input", () => {
+    clearTimeout(timer);
+    const q = el("ff-q").value.trim();
+    const hit = [...el("ff-hits").options].find((o) => o.value === q);
+    if (hit) {
+      fund = hit.dataset.code;
+      if (![...el("ff-fund").options].some((o) => o.value === fund)) el("ff-fund").insertAdjacentHTML("beforeend", `<option value="${fund}"></option>`);
+      el("ff-fund").lastElementChild.textContent = q; el("ff-fund").value = fund; save(); drawFund();
+      return;
+    }
+    if (q.length < 3) return;
+    timer = setTimeout(async () => {
+      try {
+        const r = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(q)}`);
+        const j = await r.json();
+        el("ff-hits").innerHTML = j.slice(0, 30).map((s) => `<option data-code="${s.schemeCode}" value="${s.schemeName.replace(/"/g, "&quot;")}"></option>`).join("");
+      } catch { /* search is optional: the presets still work */ }
+    }, 250);
+  });
+  el("ff-fund").addEventListener("change", () => { fund = el("ff-fund").value; save(); drawFund(); });
+  for (const id of ["ff-from", "ff-to"]) el(id).addEventListener("change", () => { save(); drawFactors(); drawFund(); });
+  el("ff-model").addEventListener("change", () => { save(); drawFund(); });
+  drawFactors(); drawFund();
+})();
+</script>
