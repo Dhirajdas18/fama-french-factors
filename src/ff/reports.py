@@ -100,6 +100,102 @@ def report_factors(out_dir: Path) -> dict:
     return res
 
 
+def report_momentum(out_dir: Path) -> dict:
+    """Momentum rebuilt from the NSE archive (ff.momentum) against IIMA's WML over the months
+    both cover: the IIMA-like build (12-1 momentum, top and bottom 30%, big = top 10% by past
+    turnover, equal weights), and one change at a time: turnover weights, no size split, no
+    skipped month, and today's survivors only. Correlation, average a year with Newey-West t,
+    the regression of ours on IIMA's, tracking error, and how much of the winners changes each
+    month. Needs the NSE bhavcopy archive."""
+    from ff import data, momentum, stats
+
+    f = data.factors()
+    px, tv = momentum.monthly_panel()
+    alive = px.columns[px.iloc[-1].notna()]
+    variants = {
+        "IIMA-like": ({}, px),
+        "turnover weights": ({"weight": "turnover"}, px),
+        "no size split": ({"sized": False}, px),
+        "no skipped month": ({"skip": 0}, px),
+        "survivors only": ({}, px[alive]),
+    }
+    res, out = {}, {}
+    for name, (kw, p) in variants.items():
+        w = momentum.wml(p, tv[p.columns], **kw)
+        j = pd.concat([w["WML"], f["WML"].rename("IIMA")], axis=1, join="inner").dropna()
+        o = stats.ols(j["WML"], j["IIMA"].to_numpy())
+        s, si = stats.summary(j["WML"]), stats.summary(j["IIMA"])
+        out[name] = (j, s)
+        res[name] = (
+            f"{len(j)} months ({j.index[0]:%b %Y}-{j.index[-1]:%b %Y}), median "
+            f"{w['n'].median():.0f} stocks: mean {s['mean']:+.1%} a year (t {s['t']:.2f}) against "
+            f"IIMA {si['mean']:+.1%} (t {si['t']:.2f}); correlation {j.corr().iloc[0, 1]:.2f}; "
+            f"ours = {12 * o['b'][0]:+.1%}"
+            f" a year + {o['b'][1]:.2f} x IIMA (R² {o['r2']:.2f}); tracking error "
+            f"{(j['WML'] - j['IIMA']).std() * np.sqrt(12):.1%} a year; worst fall {s['dd']:.0%} "
+            f"(IIMA {si['dd']:.0%})")
+    res["  delisted or stopped trading in the archive"] = (
+        f"{px.shape[1] - len(alive)} of {px.shape[1]} stocks")
+    j = out["IIMA-like"][0]
+    for lab, a, b in (("2014-2019", None, "2019"), ("2020-2025", "2020", None)):
+        h = j.loc[a:b]
+        res[f"  IIMA-like, {lab}"] = (
+            f"correlation {h.corr().iloc[0, 1]:.2f}; mean {12 * h['WML'].mean():+.1%} against "
+            f"{12 * h['IIMA'].mean():+.1%}")
+    # winners' turnover: share of the winners list replaced from one month to the next
+    mom = px.shift(1) / px.shift(12) - 1
+    chg = []
+    prev = None
+    for t in px.index[12:-1]:
+        m = mom.loc[t].dropna()
+        if len(m) < 50:
+            continue
+        win = set(m[m >= m.quantile(0.7)].index)
+        if prev:
+            chg.append(1 - len(win & prev) / len(prev))
+        prev = win
+    res["  winners replaced each month"] = f"{np.mean(chg):.0%} on average"
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6), gridspec_kw={"width_ratios": [1.4, 1]})
+    ax = axes[0]
+    lines = (("IIMA (all listed, value-weighted)", j["IIMA"], plots.MUTED),
+             ("rebuilt, IIMA-like (archive)", j["WML"], plots.COLORS["WML"]),
+             ("rebuilt, no size split", out["no size split"][0]["WML"], plots.SERIES[0]))
+    for lab, r, col in lines:
+        w = (1 + r).cumprod()
+        ax.plot(w.index, w, color=col, lw=2)
+        plots.label_line_end(ax, w.index[-1], float(w.iloc[-1]), lab, col)
+    ax.axhline(1, color=plots.TEXT_2, lw=0.8)
+    ax.set_ylabel("₹1 in winners minus losers,\ncompounded monthly")
+    ax.yaxis.set_major_formatter(lambda v, _: f"₹{v:g}")
+    ax.set_title("Momentum rebuilt from the archive against IIMA's", fontsize=10.5, loc="left")
+    ax = axes[1]
+    names = list(variants)
+    y = np.arange(len(names))[::-1]
+    vals = [100 * out[n][1]["mean"] for n in names]
+    ax.barh(y, vals, color=[plots.COLORS["WML"]] + [plots.SERIES[0]] * (len(names) - 1),
+            height=0.6)
+    iima = 100 * stats.summary(j["IIMA"])["mean"]
+    ax.axvline(iima, color=plots.TEXT_2, lw=1, ls="--")
+    ax.text(iima, y[-1] - 0.45, f" IIMA {iima:+.1f}", fontsize=8.5, color=plots.TEXT_2, va="top")
+    right = max(vals) * 1.08
+    for yy, n, v in zip(y, names, vals, strict=True):
+        c = out[n][0].corr().iloc[0, 1]
+        ax.text(right, yy, f"{v:+.1f}  (corr {c:.2f})", va="center", fontsize=8.5,
+                color=plots.TEXT)
+    ax.set_yticks(y, names)
+    ax.set_xlim(0, max(vals) * 1.6)
+    ax.set_xlabel("average a year, %")
+    ax.set_title("One change at a time", fontsize=10.5, loc="left")
+    fig.suptitle("Momentum rebuilt from about 460 liquid NSE stocks tracked IIMA's factor",
+                 x=0.01, ha="left", fontweight="bold")
+    fig.tight_layout()
+    plots.save(fig, out_dir, "momentum")
+    plt.close(fig)
+    return res
+
+
 REPORTS: dict[str, Callable[[Path], dict]] = {
     "factors": report_factors,
+    "momentum": report_momentum,
 }

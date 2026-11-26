@@ -15,7 +15,7 @@ market, size, value and momentum exposures and what is left over, computed in yo
 ## Features
 
 - [x] What market, size, value and momentum earned in India, 1993–2025, by half, with their worst falls
-- [ ] Momentum rebuilt from the NSE archive and checked against the library's factor
+- [x] Momentum rebuilt from the NSE archive and checked against the library's factor
 - [ ] CAPM against three and four factors on single stocks: how much each explains, and stable loadings
 - [ ] Do the factors price the size-value portfolios? The GRS test for CAPM, three and four factors
 - [ ] Mutual funds: is their alpha just size, value and momentum? Out of sample
@@ -52,12 +52,37 @@ against NIFTY from the local archive where both exist.
 - **Momentum and value offset each other.** Their monthly correlation was −0.37; market and size
   +0.25, market and value +0.22.
 
+### 2. Momentum rebuilt from about 460 liquid NSE stocks tracked IIMA's factor
+
+<a href="docs/img/momentum.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/momentum.png"><img src="docs/img/momentum.gif" alt="Growth of one rupee in IIMA's momentum factor and in momentum rebuilt from the NSE archive, 2014-2025, and the average return of five rebuilt variants" width="720"></picture></a>
+
+IIMA's momentum rule (working paper 2013-09-05, section 3.2): at each month-end, momentum is the
+return from 12 months back to one month back; winners are the top 30%, losers the bottom 30%; big
+companies are the top 10% by market value; the factor is the average of big winners minus big
+losers and small winners minus small losers, value-weighted, held for the next month. The NSE
+archive has split-adjusted prices for every stock that was among its most-traded from 2013,
+including 69 that later stopped trading, but no shares outstanding, so the rebuild uses each
+stock's median daily turnover over the past year for size and weights stocks equally; a stock
+that stops trading keeps its last price. It is compared with IIMA's factor over the 143 months
+both cover, February 2014 to December 2025, changing one choice at a time. Nothing is fitted.
+
+- **It tracked IIMA's factor.** The IIMA-like rebuild made 11.9% a year (t 2.01) against IIMA's
+  12.9% (t 2.92), with a monthly correlation of 0.76; regressed on IIMA's, its loading was 1.00 and
+  its intercept −1.0% a year. Tracking error was 12.9% a year.
+- **It was rougher.** Its worst fall was −43% against IIMA's −26% over the same months.
+- **The details moved the average by several points.** Without the size split it made 16.1% a year;
+  with turnover weights, 8.7%; without skipping the latest month, 11.3%; with today's survivors only,
+  9.9%. Every variant kept a correlation of 0.73–0.76 with IIMA's.
+- **Both halves agreed.** The correlation was 0.77 in 2014–2019 (17.1% a year against IIMA's 16.5%)
+  and 0.74 in 2020–2025 (6.7% against 9.3%).
+- **Winners change slowly.** On average 17% of the winners list was replaced each month.
+
 ## Quick start
 
 ```bash
 uv sync
 uv run python scripts/fetch_data.py   # IIMA factor library -> data/iima/
-uv run ff report factors              # topics: factors
+uv run ff report factors              # topics: factors, momentum
 uv run python scripts/build_site.py   # factor lab -> site/index.html
 uv run pytest
 ```
@@ -77,6 +102,8 @@ it.
 - `src/ff/site.py`: the factor lab, one static Plotly page that carries the monthly factors; fund
   prices are fetched live from mfapi.in.
 - `src/ff/lake.py`: NIFTY's monthly return from the local NSE archive.
+- `src/ff/momentum.py`: month-end prices and past-year turnover from the archive, and winners
+  minus losers built the IIMA way (size by turnover, equal or turnover weights).
 - `src/ff/reports.py`: README findings, reproducible with `ff report <topic>`.
 - Conventions: returns are monthly and simple, in decimals; averages are 12 × the monthly mean,
   volatility √12 × the monthly standard deviation, compounded growth over months ÷ 12 years; t
