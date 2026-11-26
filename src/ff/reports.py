@@ -286,8 +286,94 @@ def report_stocks(out_dir: Path) -> dict:
     return res
 
 
+def report_grs(out_dir: Path) -> dict:
+    """Do CAPM, three and four factors price IIMA's own portfolios? Test assets: the six
+    size-value portfolios less big value (missing in 154 months, when it held under five stocks)
+    and the four size-momentum portfolios, in excess of the risk-free rate; the GRS test that all
+    nine alphas are zero, whole period and halves; big value tested alone on its own months. Also
+    how closely the published factors rebuild from these portfolios."""
+    from scipy.stats import f as fdist
+
+    from ff import data, stats
+
+    f = data.factors()
+    sv, sm = data.portfolios("size_value"), data.portfolios("size_momentum")
+    P = pd.concat([sv.drop(columns="BV"), sm], axis=1)
+    j = P.join(f, how="inner").dropna()
+    ex = j[P.columns].sub(j["RF"], axis=0)
+    models = {"CAPM": ["MKT"], "3-factor": ["MKT", "SMB", "HML"],
+              "4-factor": ["MKT", "SMB", "HML", "WML"]}
+    res = {"test assets": f"{', '.join(P.columns)}; {len(j)} months, "
+                          f"{j.index[0]:%b %Y}-{j.index[-1]:%b %Y}"}
+    out = {}
+    for per, a, b in (("all", None, None), *HALVES):
+        e, g_ = ex.loc[a:b], j.loc[a:b]
+        for m, c in models.items():
+            g = stats.grs(e.to_numpy(), g_[c].to_numpy())
+            crit = fdist.isf(0.05, g["N"], g["T"] - g["N"] - len(c))
+            out[(per, m)] = (g, crit)
+            txt = (f"GRS {g['grs']:.2f} (5% critical {crit:.2f}), p {g['p']:.4f}; mean |alpha| "
+                   f"{12 * g['mean_abs_alpha']:.1%} a year")
+            if per == "all":
+                txt += "; alphas % a year: " + ", ".join(
+                    f"{k} {1200 * v:+.1f}" for k, v in zip(P.columns, g["alpha"], strict=True))
+            res[f"{per}, {m} ({g['T']} months)"] = txt
+    k = sv[["BV"]].join(f, how="inner").dropna()
+    for m, c in models.items():
+        o = stats.ols((k["BV"] - k["RF"]).to_numpy(), k[c].to_numpy())
+        res[f"  big value alone, {m} ({len(k)} months)"] = (
+            f"alpha {12 * o['b'][0]:+.1%} a year (t {o['t'][0]:.2f})")
+    b = sv.join(sm).join(f[["SMB", "HML", "WML"]], how="inner")
+    full = b.dropna()
+    smb = full[["SV", "SN", "SG"]].mean(axis=1) - full[["BV", "BN", "BG"]].mean(axis=1)
+    hml = (full["SV"] + full["BV"]) / 2 - (full["SG"] + full["BG"]) / 2
+    q = b.dropna(subset=["WB", "WS", "LB", "LS", "WML"])
+    wml = ((q["WB"] - q["LB"]) + (q["WS"] - q["LS"])) / 2
+    res["published factors against the same differences of the portfolios"] = "; ".join(
+        f"{n} correlation {x.corr(y):.3f}" for n, x, y in
+        (("SMB", smb, full["SMB"]), ("HML", hml, full["HML"]), ("WML", wml, q["WML"])))
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.8), gridspec_kw={"width_ratios": [1.5, 1]})
+    ax = axes[0]
+    x = np.arange(len(P.columns))
+    for i, (m, col) in enumerate(zip(models, (plots.MUTED, plots.SERIES[2], plots.COLORS["WML"]),
+                                     strict=True)):
+        g = out[("all", m)][0]
+        ax.bar(x + (i - 1) * 0.27, 1200 * g["alpha"], 0.25, color=col, label=m)
+    ax.axhline(0, color=plots.TEXT_2, lw=0.8)
+    names = {"BN": "big\nneutral", "BG": "big\ngrowth", "SV": "small\nvalue",
+             "SN": "small\nneutral", "SG": "small\ngrowth", "WB": "big\nwinners",
+             "WS": "small\nwinners", "LB": "big\nlosers", "LS": "small\nlosers"}
+    ax.set_xticks(x, [names[c] for c in P.columns], fontsize=8.5)
+    ax.set_ylabel("alpha, % a year")
+    ax.legend(frameon=False, fontsize=9, ncols=3, loc="upper left")
+    ax.margins(y=0.2)
+    ax.set_title("Each portfolio's alpha, 1993-2025", fontsize=10.5, loc="left")
+    ax = axes[1]
+    pers = ["all", "1993-2009", "2010-2025"]
+    y = np.arange(len(pers))[::-1]
+    for i, (m, col) in enumerate(zip(models, (plots.MUTED, plots.SERIES[2], plots.COLORS["WML"]),
+                                     strict=True)):
+        v = [out[(p, m)][0]["grs"] for p in pers]
+        ax.barh(y + (1 - i) * 0.27, v, 0.25, color=col)
+    crit = out[("all", "CAPM")][1]
+    ax.axvline(crit, color=plots.TEXT_2, lw=1, ls="--")
+    ax.text(crit, y[-1] - 0.5, " 5% line", fontsize=8.5, color=plots.TEXT_2, va="top")
+    ax.set_yticks(y, ["1993-2025", "1993-2009", "2010-2025"])
+    ax.set_xlabel("GRS statistic (past the line: alphas not all zero)")
+    ax.set_title("All three models rejected", fontsize=10.5, loc="left")
+    fig.suptitle("No model priced IIMA's own portfolios; four factors left the smallest alphas "
+                 "overall",
+                 x=0.01, ha="left", fontweight="bold")
+    fig.tight_layout()
+    plots.save(fig, out_dir, "grs")
+    plt.close(fig)
+    return res
+
+
 REPORTS: dict[str, Callable[[Path], dict]] = {
     "factors": report_factors,
     "momentum": report_momentum,
     "stocks": report_stocks,
+    "grs": report_grs,
 }

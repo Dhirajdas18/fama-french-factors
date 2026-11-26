@@ -17,7 +17,7 @@ market, size, value and momentum exposures and what is left over, computed in yo
 - [x] What market, size, value and momentum earned in India, 1993–2025, by half, with their worst falls
 - [x] Momentum rebuilt from the NSE archive and checked against the library's factor
 - [x] CAPM against three and four factors on single stocks: how much each explains, and stable loadings
-- [ ] Do the factors price the size-value portfolios? The GRS test for CAPM, three and four factors
+- [x] Do the factors price the size-value portfolios? The GRS test for CAPM, three and four factors
 - [ ] Mutual funds: is their alpha just size, value and momentum? Out of sample
 - [ ] Factor crashes: momentum and value drawdowns, and a risk-scaling rule chosen on early years
 - [ ] Verdict: which factors to use for risk and attribution, and whether to tilt towards any
@@ -103,12 +103,38 @@ June 2013), so in-sample alphas are not evidence of skill.
   loadings matched 2020–2025 with a correlation of 0.55 for size, 0.44 for value and 0.18 for
   momentum. CAPM beta kept 0.52, but the market loading inside the four-factor model only 0.11.
 
+### 4. No model priced IIMA's own portfolios; four factors left the smallest alphas overall
+
+<a href="docs/img/grs.png"><picture><source media="(prefers-reduced-motion: reduce)" srcset="docs/img/grs.png"><img src="docs/img/grs.gif" alt="Alpha of nine IIMA size-value and size-momentum portfolios under CAPM, three and four factors, and the GRS statistic for each model by period against its 5% line" width="720"></picture></a>
+
+The test assets are IIMA's six size-value portfolios less big value (absent in 154 months, when it
+held under five stocks) and its four size-momentum portfolios, in excess of the risk-free rate,
+over the 377 months with all nine, November 1993 to December 2025. Each is regressed on CAPM, three
+and four factors; the Gibbons-Ross-Shanken (GRS) test asks whether all nine alphas are zero at once,
+assuming normal, independent errors. Big value is tested alone on its own 232 months. The factors
+are built from these same portfolios: IIMA's published size, value and momentum factors match the
+corresponding portfolio differences with monthly correlations of 0.995, 0.997 and 0.983 (they are
+compounded from daily returns, so not exactly), so the test asks whether the factors' averages
+line up with the portfolios' averages, not whether unrelated assets are priced.
+
+- **Every model was rejected.** GRS was 3.07 for CAPM, 5.44 for three factors and 4.35 for four,
+  against a 5% critical value of 1.91 (p 0.0015 and below 0.0001).
+- **Four factors left the smallest alphas.** The average alpha, ignoring sign, was 4.0% a year
+  for CAPM, 3.7% for three factors and 2.8% for four.
+- **Three factors couldn't price momentum.** Their alphas were +7.3% and +6.4% a year for big and
+  small winners and −6.7% and −6.5% for big and small losers; with momentum added they were +0.9%,
+  +2.5%, +7.4% and +2.4%.
+- **The rejection held in both halves.** In 1993–2009, GRS was 2.05 for CAPM (p 0.036), 3.32 and
+  3.09; in 2010–2025, 5.63, 6.37 and 4.60.
+- **Big value on its own was not rejected.** Its alpha was +9.4% a year under CAPM (t 1.55) and
+  −3.3% under three factors (t −1.39).
+
 ## Quick start
 
 ```bash
 uv sync
 uv run python scripts/fetch_data.py   # IIMA factor library -> data/iima/
-uv run ff report factors              # topics: factors, momentum, stocks
+uv run ff report factors              # topics: factors, momentum, stocks, grs
 uv run python scripts/build_site.py   # factor lab -> site/index.html
 uv run pytest
 ```
@@ -121,8 +147,9 @@ it.
 
 - `src/ff/data.py`: finds the library's latest release, downloads its survivorship-bias adjusted
   factor and portfolio files with retries, and loads them as decimal returns by month-end.
-- `src/ff/stats.py`: least squares with Newey-West t statistics, and the return summary (average,
-  volatility, compounded growth, t, worst month, worst 12 months, worst fall).
+- `src/ff/stats.py`: least squares with Newey-West t statistics, the return summary (average,
+  volatility, compounded growth, t, worst month, worst 12 months, worst fall) and the
+  Gibbons-Ross-Shanken test (F p-value from scipy).
 - `src/ff/ff.js`: the lab's browser copy of the regression and summary, and monthly returns from
   mfapi.in net asset values, tested against Python through Node to 1e-8.
 - `src/ff/site.py`: the factor lab, one static Plotly page that carries the monthly factors; fund
