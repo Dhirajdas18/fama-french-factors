@@ -104,7 +104,7 @@ def report_momentum(out_dir: Path) -> dict:
     """Momentum rebuilt from the NSE archive (ff.momentum) against IIMA's WML over the months
     both cover: the IIMA-like build (12-1 momentum, top and bottom 30%, big = top 10% by past
     turnover, equal weights), and one change at a time: turnover weights, no size split, no
-    skipped month, today's survivors only, and the reference model's point-in-time top 200 (the archive
+    skipped month, today's survivors only, and the reference point-in-time top 200 (the archive
     itself holds stocks that were among its most-traded at some point, chosen with hindsight).
     Correlation, average a year with Newey-West t,
     the regression of ours on IIMA's, tracking error, and how much of the winners changes each
@@ -565,7 +565,7 @@ def report_verdict(out_dir: Path) -> dict:
     (nothing fitted) and maximum-Sharpe weights fitted on 1994-2009, Sharpe ratios and worst falls
     in each half. (2) Long-only: IIMA's winner and value portfolios against the market's own
     return. (3) A long-only momentum tilt an investor could hold: the top 30% by 12-1 momentum
-    within the reference model's point-in-time top 200, equally weighted, monthly, after NSE delivery costs
+    within the reference point-in-time top 200, equally weighted, monthly, after NSE delivery costs
     (verdict.BUY / SELL), against the equal-weighted top 200 and NIFTY. Before tax, no dividends.
     Needs the NSE bhavcopy archive for (3)."""
     from ff import data, momentum, stats, verdict

@@ -74,7 +74,7 @@ def wml(m_px: pd.DataFrame, m_tv: pd.DataFrame, skip: int = 1, weight: str = "eq
 
 
 def monthly_universe() -> pd.DataFrame:
-    """The reference model's point-in-time universe at each month-end (in_uni on the month's last trading
+    """The reference point-in-time universe at each month-end (in_uni on the month's last trading
     day: the top 200 by median turnover, priced at ₹50 or more, with a year of history)."""
     p = pd.read_parquet(lake_dir() / "panel.parquet", columns=["date", "symbol", "in_uni"])
     u = p.pivot_table(index="date", columns="symbol", values="in_uni", aggfunc="last")
